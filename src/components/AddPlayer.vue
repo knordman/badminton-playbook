@@ -1,32 +1,32 @@
 <script lang="ts">
 import { db } from "@/shared/db";
+import { ref } from "vue";
 
 export default {
-  data() {
+  setup() {
     return {
-      input: {
-        name: "",
-      },
-      errors: {
-        name: "",
-      },
+      name: ref<string>(""),
+      error: ref<string | undefined>(undefined),
+      addAnother: ref<boolean>(true),
     };
   },
 
   methods: {
     async addPlayer(dialogIsActive: { value: boolean }) {
-      if (!this.input.name) {
-        this.errors.name = "Name is required";
+      if (!this.name) {
+        this.error = "Name is required";
       } else {
-        const query = db.players.where("name").equals(this.input.name);
+        const query = db.players.where("name").equals(this.name);
         const count = await query.count();
         if (count > 0) {
-          this.errors.name = `${this.input.name} has already been added`;
+          this.error = `${this.name} has already been added`;
         } else {
-          await db.players.add({ name: this.input.name });
-          this.input.name = "";
-          this.errors.name = "";
-          // dialogIsActive.value = false;
+          await db.players.add({ name: this.name });
+          this.name = "";
+          this.error = "";
+          if (!this.addAnother) {
+            dialogIsActive.value = false;
+          }
         }
       }
     },
@@ -46,21 +46,19 @@ export default {
       <v-card title="Add player">
         <v-card-text>
           <v-text-field
-            v-model="input.name"
+            v-model="name"
             label="Name"
-            :error-messages="errors.name"
+            :error-messages="error"
           ></v-text-field>
+          <v-checkbox label="Add another after this one" v-model="addAnother"></v-checkbox>
         </v-card-text>
-
         <v-card-actions>
           <v-spacer></v-spacer>
-
           <v-btn
-            text="Close"
+            text="Cancel"
             variant="plain"
             @click="isActive.value = false"
           ></v-btn>
-
           <v-btn
             color="primary"
             text="Add"

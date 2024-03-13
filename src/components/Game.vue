@@ -18,7 +18,7 @@ export default {
 </script>
 
 <template>
-  <v-card>
+  <v-card class="game-card">
     <v-card-title
       ><h6 class="text-uppercase font-weight-thin">
         {{
@@ -34,4 +34,8 @@ export default {
   </v-card>
 </template>
 
-<style></style>
+<style>
+.game-card {
+  min-width: 380px;
+}
+</style>

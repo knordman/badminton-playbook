@@ -1,5 +1,6 @@
 <script lang="ts">
 import { db } from "@/shared/db";
+import type { GameResult } from "@/shared/scenarios";
 import type { PropType } from "vue";
 import { ref } from "vue";
 
@@ -49,7 +50,9 @@ export default {
         if (value === false) {
           this.pointsErrors = event.target.value !== "";
           await db.transaction("rw", db.results, async () => {
-            let stored = await db.results.get(this.game);
+            let stored = <GameResult | undefined>(
+              await db.results.get(this.game)
+            );
             if (stored) {
               delete stored.players[this.name];
               await db.results.put(stored);
@@ -64,7 +67,9 @@ export default {
                 ? [...this.player]
                 : [this.player],
             };
-            let stored = await db.results.get(this.game);
+            let stored = <GameResult | undefined>(
+              await db.results.get(this.game)
+            );
             if (!stored) {
               stored = {
                 playing: this.game,
@@ -81,7 +86,9 @@ export default {
       }
     },
     async getStoredPoints() {
-      const storedResult = await db.results.get(this.game);
+      const storedResult = <GameResult | undefined>(
+        await db.results.get(this.game)
+      );
       if (storedResult && storedResult.players[this.name]) {
         this.points = storedResult.players[this.name].points;
       } else {

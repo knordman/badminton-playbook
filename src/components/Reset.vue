@@ -1,6 +1,5 @@
 <script lang="ts">
-import { db } from "@/shared/db";
-import { playersContextId } from "./GetScenario.vue";
+import { db, playersContextId } from "@/shared/db";
 
 export default {
   methods: {

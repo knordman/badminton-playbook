@@ -16,7 +16,11 @@ type Row = {
 export default {
   setup() {
     return {
-      results: useObservable(from(liveQuery(() => db.results.toArray()))),
+      results: useObservable(
+        from(
+          liveQuery(() => db.results.toArray())
+        )
+      ),
     };
   },
 

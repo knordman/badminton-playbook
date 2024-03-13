@@ -1,10 +1,9 @@
 <script lang="ts">
 import Break from "@/components/Break.vue";
 import Game from "@/components/Game.vue";
-import { playersContextId } from "@/components/GetScenario.vue";
-import { db } from "@/shared/db";
-import type * as Scenario from "@/shared/scenario";
-import { isPlayable } from "@/shared/scenario";
+import { db, playersContextId } from "@/shared/db";
+import type * as Scenario from "@/shared/scenarios";
+import { isPlayable } from "@/shared/scenarios";
 import { from, useObservable } from "@vueuse/rxjs";
 import { liveQuery } from "dexie";
 
@@ -64,8 +63,10 @@ export default {
       <Game v-for="game in doubles" class="ma-2" :game="game" />
     </div>
     <div v-else-if="storedContext"></div>
-    <div v-else-if="playable()">Press start to generate game plan</div>
-    <div v-else>
+    <div class="mx-4 text-center" v-else-if="playable()">
+      Press start to generate game plan
+    </div>
+    <div class="mx-4 text-center" v-else>
       Add between 2 and 9 players to generate game plan. There
       {{
         numberOfPlayers === 1

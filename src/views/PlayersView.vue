@@ -40,6 +40,6 @@ export default {
 
 <style>
 .list-of-players {
-  min-width: 350px;
+  min-width: 380px;
 }
 </style>

@@ -1,23 +1,20 @@
 <script lang="ts">
-import { db } from "@/shared/db";
-import { getNext, isPlayable, type Result } from "@/shared/scenario";
+import { db, playersContextId, type PlayersContext } from "@/shared/db";
+import {
+  computeNextScenarioWithWorker,
+  isPlayable,
+  type GameResult,
+  type Result,
+} from "@/shared/scenarios";
 import { liveQuery } from "dexie";
 import { Subscription, from, map } from "rxjs";
 import { ref } from "vue";
 
-const enum Mode {
-  START = "Start",
-  CONTINUE = "Continue",
-}
+export function gameIsFinished(result: Result): result is GameResult {
+  if ("type" in result && result.type === "break") {
+    return false;
+  }
 
-type PlayersContext = {
-  id: "players";
-  value: string;
-};
-
-export const playersContextId: PlayersContext["id"] = "players";
-
-export function gameIsFinished(result: Result): boolean {
   if (Object.keys(result.players).length === 2) {
     return true;
   }
@@ -86,30 +83,24 @@ export default {
 
   methods: {
     async nextScenario() {
-      this.unsubscribeResults();
-
-      const next = await getNext(db);
-
-      await db.transaction("rw", [db.playing, db.context], async () => {
-        await db.playing.clear();
-        for (const part of next) {
-          await db.playing.add(part);
-        }
-        await db.context.put({
-          id: playersContextId,
-          value: this.activeContext,
+      if (this.activeContext) {
+        this.unsubscribeResults();
+        await computeNextScenarioWithWorker({
+          playersContext: this.activeContext,
         });
-      });
-
-      await this.subscribeToResults();
+        await this.subscribeToResults();
+      }
     },
     async subscribeToResults() {
       this.buttonText = "Continue";
       this.resultsRegistered = false;
 
-      const gamesToWatch = (await db.playing.toArray())
-        .filter((g) => g.type === "single" || g.type === "double")
-        .map((p) => p.id!);
+      const gamesToWatch: number[] = [];
+      for (const game of await db.playing.toArray()) {
+        if (game.type === "single" || game.type === "double") {
+          gamesToWatch.push(game.id!);
+        }
+      }
 
       const observer = from(
         liveQuery(() =>
