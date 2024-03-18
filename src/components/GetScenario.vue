@@ -1,25 +1,13 @@
 <script lang="ts">
-import { db, playersContextId, type PlayersContext } from "@/shared/db";
+import { db, playersContextId } from "@/shared/db";
 import {
   computeNextScenarioWithWorker,
-  isPlayable,
-  type GameResult,
-  type Result,
+  gameIsFinished,
+  getActiveContext,
 } from "@/shared/scenarios";
 import { liveQuery } from "dexie";
 import { Subscription, from, map } from "rxjs";
 import { ref } from "vue";
-
-export function gameIsFinished(result: Result): result is GameResult {
-  if ("type" in result && result.type === "break") {
-    return false;
-  }
-
-  if (Object.keys(result.players).length === 2) {
-    return true;
-  }
-  return false;
-}
 
 export default {
   setup() {
@@ -32,20 +20,16 @@ export default {
   },
 
   async mounted() {
-    const { players, activeContext, storedContext } = await db.transaction(
+    const { activeContext, storedContext } = await db.transaction(
       "r",
       [db.players, db.context],
       async () => {
-        const definedPlayers = (await db.players.toArray()).map((p) => p.name);
-        const activeContext = isPlayable(definedPlayers.length)
-          ? definedPlayers.join("-") // players are sorted
-          : undefined;
-        const storedContext = <PlayersContext | undefined>(
-          await db.context.get(playersContextId)
-        );
+        const players = await db.players.toArray();
+        const activeContext = getActiveContext(players.map((p) => p.name));
+        const storedContext = await db.context.get(playersContextId);
 
         return {
-          players: definedPlayers,
+          players,
           storedContext: storedContext?.value,
           activeContext,
         };
@@ -85,9 +69,7 @@ export default {
     async nextScenario() {
       if (this.activeContext) {
         this.unsubscribeResults();
-        await computeNextScenarioWithWorker({
-          playersContext: this.activeContext,
-        });
+        await computeNextScenarioWithWorker();
         await this.subscribeToResults();
       }
     },
@@ -103,9 +85,7 @@ export default {
       }
 
       const observer = from(
-        liveQuery(() =>
-          db.results.where("playing").anyOf(gamesToWatch).toArray()
-        )
+        liveQuery(() => db.results.where("id").anyOf(gamesToWatch).toArray())
       ).pipe(
         map((results) => {
           if (results.length >= gamesToWatch.length) {

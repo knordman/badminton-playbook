@@ -1,8 +1,12 @@
 <script lang="ts">
 import { db } from "@/shared/db";
-import type { GameResult } from "@/shared/scenarios";
+import type { OngoingGameWithPoints, Result } from "@/shared/scenarios";
 import type { PropType } from "vue";
 import { ref } from "vue";
+
+function isResultWithPoints(result?: Result): result is OngoingGameWithPoints {
+  return result !== undefined && result.type !== "break" && !result.finished;
+}
 
 export default {
   setup() {
@@ -50,11 +54,9 @@ export default {
         if (value === false) {
           this.pointsErrors = event.target.value !== "";
           await db.transaction("rw", db.results, async () => {
-            let stored = <GameResult | undefined>(
-              await db.results.get(this.game)
-            );
-            if (stored) {
-              delete stored.players[this.name];
+            let stored = await db.results.get(this.game);
+            if (isResultWithPoints(stored)) {
+              delete stored.participants[this.name];
               await db.results.put(stored);
             }
           });
@@ -67,18 +69,18 @@ export default {
                 ? [...this.player]
                 : [this.player],
             };
-            let stored = <GameResult | undefined>(
-              await db.results.get(this.game)
-            );
-            if (!stored) {
+            let stored = await db.results.get(this.game);
+            if (isResultWithPoints(stored)) {
+              stored.participants[this.name] = result;
+            } else {
               stored = {
-                playing: this.game,
-                players: {
+                type: Array.isArray(this.player) ? "double" : "single",
+                id: this.game,
+                finished: 0,
+                participants: {
                   [this.name]: result,
                 },
               };
-            } else {
-              stored.players[this.name] = result;
             }
             await db.results.put(stored);
           });
@@ -86,11 +88,9 @@ export default {
       }
     },
     async getStoredPoints() {
-      const storedResult = <GameResult | undefined>(
-        await db.results.get(this.game)
-      );
-      if (storedResult && storedResult.players[this.name]) {
-        this.points = storedResult.players[this.name].points;
+      const stored = await db.results.get(this.game);
+      if (isResultWithPoints(stored) && stored.participants[this.name]) {
+        this.points = stored.participants[this.name].points;
       } else {
         // clear points when game changes
         this.points = undefined;

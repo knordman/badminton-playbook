@@ -1,10 +1,11 @@
 <script lang="ts">
-import { gameIsFinished } from "@/components/GetScenario.vue";
 import { db } from "@/shared/db";
+import type { Double, Single } from "@/shared/scenarios";
 import { from, useObservable } from "@vueuse/rxjs";
 import { liveQuery } from "dexie";
+import { ref } from "vue";
 
-type Row = {
+export type Row = {
   singles: number;
   singlesWon: number;
   doubles: number;
@@ -18,8 +19,24 @@ export default {
     return {
       results: useObservable(
         from(
-          liveQuery(() => db.results.toArray())
+          liveQuery(() =>
+            db.results
+              .where("[type+finished]")
+              .anyOf([
+                [<Single["type"]>"single", 1],
+                [<Double["type"]>"double", 1],
+              ])
+              .toArray()
+          )
         )
+      ),
+      percentFormat: ref(
+        new Intl.NumberFormat("fi-FI", {
+          style: "percent",
+          minimumFractionDigits: 0,
+          maximumFractionDigits: 0,
+          minimumIntegerDigits: 1,
+        })
       ),
     };
   },
@@ -28,41 +45,46 @@ export default {
     rows() {
       const byPlayer = new Map<string, Row>();
       for (const result of this.results ?? []) {
-        if (gameIsFinished(result)) {
-          const participants = Object.keys(result.players);
+        if (result.finished && result.type !== "break") {
           const winner =
-            result.players[participants[0]].points >
-            result.players[participants[1]].points
-              ? participants[0]
-              : result.players[participants[1]].points >
-                result.players[participants[0]].points
-              ? participants[1]
+            result.points[0] > result.points[1]
+              ? result.players[0]
+              : result.points[1] > result.points[0]
+              ? result.players[1]
               : undefined;
 
-          for (const [participant, data] of Object.entries(result.players)) {
-            for (const player of data.players) {
-              let bucket = byPlayer.get(player);
-              if (!bucket) {
-                bucket = {
-                  doubles: 0,
-                  doublesWon: 0,
-                  singles: 0,
-                  singlesWon: 0,
-                  winningPercent: 0,
-                  played: 0,
-                };
-                byPlayer.set(player, bucket);
+          const isWinner = (player: string): boolean => {
+            if (winner) {
+              return (
+                (typeof winner === "string" && winner === player) ||
+                winner.includes(player)
+              );
+            }
+            return false;
+          };
+
+          for (const player of result.players.flat()) {
+            let bucket = byPlayer.get(player);
+            if (!bucket) {
+              bucket = {
+                doubles: 0,
+                doublesWon: 0,
+                singles: 0,
+                singlesWon: 0,
+                winningPercent: 0,
+                played: 0,
+              };
+              byPlayer.set(player, bucket);
+            }
+            if (result.type === "single") {
+              bucket.singles++;
+              if (isWinner(player)) {
+                bucket.singlesWon++;
               }
-              if (data.players.length == 1) {
-                bucket.singles++;
-                if (winner === participant) {
-                  bucket.singlesWon++;
-                }
-              } else {
-                bucket.doubles++;
-                if (winner === participant) {
-                  bucket.doublesWon++;
-                }
+            } else {
+              bucket.doubles++;
+              if (isWinner(player)) {
+                bucket.doublesWon++;
               }
             }
           }
@@ -70,11 +92,8 @@ export default {
       }
 
       for (const row of byPlayer.values()) {
-        row.winningPercent = Math.round(
-          ((row.singlesWon + row.doublesWon) / (row.singles + row.doubles)) *
-            100.0
-        );
         row.played = row.singles + row.doubles;
+        row.winningPercent = (row.singlesWon + row.doublesWon) / row.played;
       }
 
       return [...byPlayer.entries()]
@@ -98,7 +117,7 @@ export default {
         <th class="text-left">Doubles played</th>
         <!-- <th class="text-left">Doubles wins</th> -->
         <!-- <th class="text-left">Played</th> -->
-        <th class="text-left">Winning %</th>
+        <th class="text-left">Winning</th>
       </tr>
     </thead>
     <tbody>
@@ -109,7 +128,7 @@ export default {
         <td>{{ item.doubles }}</td>
         <!-- <td>{{ item.doublesWon }}</td> -->
         <!-- <td>{{ item.played }}</td> -->
-        <td>{{ item.winningPercent }}</td>
+        <td>{{ percentFormat.format(item.winningPercent) }}</td>
       </tr>
     </tbody>
   </v-table>

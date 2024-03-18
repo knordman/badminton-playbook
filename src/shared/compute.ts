@@ -1,8 +1,4 @@
-import type { Break, Double, Result, Single } from "./scenarios";
-
-export type ScenarioPart = Break | Single | Double;
-
-export type Scenario = ScenarioPart[];
+import type { Double, FinishedGame, Game, Scenario, Single } from "./scenarios";
 
 function generateCombinationsOfSize<T>(items: T[], size: number) {
   if (size > items.length) {
@@ -29,7 +25,7 @@ function generateCombinationsOfSize<T>(items: T[], size: number) {
 }
 
 function* generateScenarios(
-  games: Games,
+  games: ConcurrentGames,
   singles: Single["players"][],
   doubles: Double["players"][]
 ) {
@@ -87,26 +83,26 @@ function* generateScenarios(
   }
 }
 
-type Games = { single: number; double: number; pause: number };
+type ConcurrentGames = { single: number; double: number; break: number };
 
-function getGames(numberOfPlayers: number): Games {
+function getConcurrentGames(numberOfPlayers: number): ConcurrentGames {
   switch (numberOfPlayers) {
     case 2:
-      return { single: 1, double: 0, pause: 0 };
+      return { single: 1, double: 0, break: 0 };
     case 3:
-      return { single: 1, double: 0, pause: 1 };
+      return { single: 1, double: 0, break: 1 };
     case 4:
-      return { single: 2, double: 0, pause: 0 };
+      return { single: 2, double: 0, break: 0 };
     case 5:
-      return { single: 2, double: 0, pause: 1 };
+      return { single: 2, double: 0, break: 1 };
     case 6:
-      return { single: 1, double: 1, pause: 0 };
+      return { single: 1, double: 1, break: 0 };
     case 7:
-      return { single: 1, double: 1, pause: 1 };
+      return { single: 1, double: 1, break: 1 };
     case 8:
-      return { single: 0, double: 2, pause: 0 };
+      return { single: 0, double: 2, break: 0 };
     case 9:
-      return { single: 0, double: 2, pause: 1 };
+      return { single: 0, double: 2, break: 1 };
     default:
       throw new Error(`unhandled number of players: ${numberOfPlayers}`);
   }
@@ -125,13 +121,13 @@ export function computeAllScenarios(participants: string[]): Scenario[] {
     )
   );
 
-  const games = getGames(numberOfPlayers);
+  const games = getConcurrentGames(numberOfPlayers);
 
   const scenarios: Scenario[] = [];
 
-  if (games.pause > 0) {
-    for (let i = 0; i < numberOfPlayers; i += games.pause) {
-      const pausedPlayers = new Set(participants.slice(i, i + games.pause));
+  if (games.break > 0) {
+    for (let i = 0; i < numberOfPlayers; i += games.break) {
+      const pausedPlayers = new Set(participants.slice(i, i + games.break));
       const availableSingles = allSingles.filter((single) => {
         for (const singlePlayer of single) {
           if (pausedPlayers.has(singlePlayer)) {
@@ -155,7 +151,7 @@ export function computeAllScenarios(participants: string[]): Scenario[] {
         availableSingles,
         availableDoubles
       )) {
-        const parts: ScenarioPart[] = [];
+        const parts: Game[] = [];
         if (pausedPlayers.size > 0) {
           parts.push({ type: "break", players: [...pausedPlayers] });
         }
@@ -170,7 +166,7 @@ export function computeAllScenarios(participants: string[]): Scenario[] {
     }
   } else {
     for (const scenario of generateScenarios(games, allSingles, allDoubles)) {
-      const parts: ScenarioPart[] = [];
+      const parts: Game[] = [];
       for (const single of scenario.singles) {
         parts.push({ type: "single", players: single });
       }
@@ -184,11 +180,11 @@ export function computeAllScenarios(participants: string[]): Scenario[] {
   return scenarios;
 }
 
-export function applyProfile(spec: {
-  items: string[];
+export function projectProfile<Item extends string | number>(spec: {
+  items: Item[];
   profile: number[];
   compressProfile?: boolean;
-}): Map<string, number> {
+}): Map<Item, number> {
   const { items, profile, compressProfile } = spec;
 
   if (profile.length < 2) {
@@ -226,11 +222,13 @@ export function applyProfile(spec: {
     outputValues.push(profile[profile.length - 1]);
   }
 
-  const map = new Map<string, number>();
+  const map = new Map<Item, number>();
   for (const [index, value] of outputValues.entries()) {
     const item = items[index];
     if (!map.has(item)) {
       map.set(item, value);
+    } else {
+      map.set(item, map.get(item)! + value);
     }
   }
 
@@ -238,19 +236,19 @@ export function applyProfile(spec: {
 }
 
 export type Context = {
-  history: Result[];
-  previous?: Scenario;
+  history: FinishedGame[];
+  gameIdsForPreviousScenario: Set<number>;
   allScenarios: Scenario[];
 };
 
-function pairKey(pair: Double["players"][number]) {
+function pairKey(pair: [string, string]): string {
   return pair.sort().join("-");
 }
 
 function gameKey(game: Single | Double) {
   return game.type === "single"
-    ? game.players.sort().join("-")
-    : game.players.flat().sort().join("-");
+    ? pairKey(game.players)
+    : pairKey([pairKey(game.players[0]), pairKey(game.players[1])]);
 }
 
 function addOne(map: Map<string, number>, key: string) {
@@ -260,59 +258,88 @@ function addOne(map: Map<string, number>, key: string) {
 export function computeNextScenario(context: Context): Scenario {
   const gameScoring = new Map<string, number>();
   const pairScoring = new Map<string, number>();
-
-  for (const part of context.previous || []) {
-    if (part.type !== "break") {
-      // avoid playing same game
-      gameScoring.set(gameKey(part), -300);
-
-      if (part.type === "double") {
-        // prefer keeping pair
-        pairScoring.set(pairKey(part.players[0]), 50);
-        pairScoring.set(pairKey(part.players[1]), 50);
-      }
-    }
-  }
-
   const numberOfSinglesByPlayer = new Map<string, number>();
   const numberOfDoublesByPlayer = new Map<string, number>();
   const breaks: string[] = [];
+
   for (const result of context.history) {
-    if ("type" in result && result.type === "break") {
+    if (result.type === "break") {
       breaks.push(...result.players);
     } else {
-      for (const data of Object.values(result.players)) {
-        const bucket =
-          data.players.length === 1
-            ? numberOfSinglesByPlayer
-            : numberOfDoublesByPlayer;
-        for (const player of data.players) {
-          addOne(bucket, player);
-        }
+      const bucket =
+        result.type === "single"
+          ? numberOfSinglesByPlayer
+          : numberOfDoublesByPlayer;
+      for (const player of result.players.flat()) {
+        addOne(bucket, player);
+      }
+      // avoid playing same game
+      gameScoring.set(gameKey(result), -800);
+
+      if (
+        result.type === "double" &&
+        context.gameIdsForPreviousScenario.has(result.id)
+      ) {
+        // prefer keeping pair
+        pairScoring.set(pairKey(result.players[0]), 50);
+        pairScoring.set(pairKey(result.players[1]), 50);
       }
     }
   }
-  const sortedNumberOfSingles = [...numberOfSinglesByPlayer.entries()].sort(
-    (a, b) => a[1] - b[1]
-  );
-  const sortedNumberOfDoubles = [...numberOfDoublesByPlayer.entries()].sort(
-    (a, b) => a[1] - b[1]
-  );
 
-  const singleScoringByPlayer = applyProfile({
-    items: sortedNumberOfSingles.map((i) => i[0]),
+  const playersByNumberOfSingles = new Map<number, Set<string>>();
+  for (const [player, numberOfSingles] of numberOfSinglesByPlayer.entries()) {
+    let bucket: Set<string>;
+    if (!playersByNumberOfSingles.has(numberOfSingles)) {
+      bucket = new Set();
+      playersByNumberOfSingles.set(numberOfSingles, bucket);
+    } else {
+      bucket = playersByNumberOfSingles.get(numberOfSingles)!;
+    }
+    bucket.add(player);
+  }
+  const playersByNumberOfDoubles = new Map<number, Set<string>>();
+  for (const [player, numberOfDoubles] of numberOfDoublesByPlayer.entries()) {
+    let bucket: Set<string>;
+    if (!playersByNumberOfDoubles.has(numberOfDoubles)) {
+      bucket = new Set();
+      playersByNumberOfDoubles.set(numberOfDoubles, bucket);
+    } else {
+      bucket = playersByNumberOfDoubles.get(numberOfDoubles)!;
+    }
+    bucket.add(player);
+  }
+
+  const singleScoringByNumberOfSingles = projectProfile({
+    items: [...playersByNumberOfSingles.keys()].sort((a, b) => b - a),
+    profile: [150, 120, 100, 80, 60, 40, 20, 10],
+  });
+  const singleScoring = (player: string): number => {
+    return (
+      singleScoringByNumberOfSingles.get(
+        numberOfSinglesByPlayer.get(player)!
+      ) ?? 0
+    );
+  };
+
+  const doubleScoringByNumberOfDoubles = projectProfile({
+    items: [...playersByNumberOfDoubles.keys()].sort((a, b) => a - b),
     profile: [-80, -40, 0, 0],
   });
-  const doubleScoringByPlayer = applyProfile({
-    items: sortedNumberOfDoubles.map((i) => i[0]),
-    profile: [-80, -40, 0, 0],
-  });
-  const breakScoring = applyProfile({
+  const doubleScoring = (player: string): number => {
+    return (
+      doubleScoringByNumberOfDoubles.get(
+        numberOfDoublesByPlayer.get(player)!
+      ) ?? 0
+    );
+  };
+
+  const breakScoring = projectProfile({
     items: breaks.reverse(),
     profile: [-10000, -9000, -8000, -7000, -6000, -5000, -4000, -3000, -2000],
   });
 
-  const scored = new Map<Scenario, number>();
+  const scored = new Map<number, Set<Scenario>>();
   for (const scenario of context.allScenarios) {
     let score = 0;
     for (const part of scenario) {
@@ -322,12 +349,12 @@ export function computeNextScenario(context: Context): Scenario {
         }
       } else if (part.type === "single") {
         for (const player of part.players) {
-          score += singleScoringByPlayer.get(player) ?? 0;
+          score += singleScoring(player);
         }
         score += gameScoring.get(gameKey(part)) ?? 0;
       } else if (part.type === "double") {
         for (const player of part.players.flat()) {
-          score += doubleScoringByPlayer.get(player) ?? 0;
+          score += doubleScoring(player);
         }
         for (const pair of part.players) {
           score += pairScoring.get(pairKey(pair)) ?? 0;
@@ -335,10 +362,18 @@ export function computeNextScenario(context: Context): Scenario {
         score += gameScoring.get(gameKey(part)) ?? 0;
       }
     }
-    scored.set(scenario, score);
+    scored.set(score, (scored.get(score) ?? new Set()).add(scenario));
   }
 
-  const [next] = [...scored.entries()].sort((a, b) => a[1] - b[1]).pop()!;
+  const sortedScores = [...scored.keys()].sort((a, b) => b - a);
 
-  return next;
+  const bestScenarios = scored.get(sortedScores[0])!;
+
+  console.debug(`scenarios: ${scored.size}`);
+  console.debug(
+    `max score: ${sortedScores[0]} with ${bestScenarios.size} scenarios`
+  );
+  const bestScenario = [...bestScenarios][0];
+
+  return bestScenario;
 }

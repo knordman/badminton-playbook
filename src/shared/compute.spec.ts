@@ -1,17 +1,17 @@
 import { describe, expect, it } from "vitest";
 import {
-  applyProfile,
   computeAllScenarios,
   computeNextScenario,
+  projectProfile,
 } from "./compute";
 
 describe("Scenarios", () => {
   describe("Ranking", () => {
-    it("applies profile to less items", () => {
+    it("projects profile to less items", () => {
       const profile = [-200, -100, 0, 0, 0];
       const items = ["a", "b", "c", "d"];
 
-      const output = applyProfile({ items, profile, compressProfile: true });
+      const output = projectProfile({ items, profile, compressProfile: true });
 
       const expected = new Map([
         ["a", -200],
@@ -26,11 +26,11 @@ describe("Scenarios", () => {
       }
     });
 
-    it("applies profile to more items", () => {
+    it("projects profile to more items", () => {
       const profile = [0, 100];
       const items = ["a", "b", "c", "d"];
 
-      const output = applyProfile({ items, profile });
+      const output = projectProfile({ items, profile });
 
       const expected = new Map([
         ["a", 0],
@@ -45,11 +45,11 @@ describe("Scenarios", () => {
       }
     });
 
-    it("returns empty map for empty items", () => {
+    it("returns empty projection map for empty items", () => {
       const profile = [0, 100];
       const items = <string[]>[];
 
-      const output = applyProfile({ items, profile });
+      const output = projectProfile({ items, profile });
 
       const expected = new Map();
 
@@ -66,56 +66,49 @@ describe("Scenarios", () => {
         allScenarios,
         history: [
           {
+            id: 0,
             type: "break",
-            players: ["C"],
-            playing: 0,
-          },
-          {
-            players: {
-              A: { players: ["A"], points: 0 },
-              B: { players: ["B"], points: 0 },
-            },
-            playing: 1,
-          },
-          {
-            type: "break",
-            players: ["A"],
-            playing: 0,
-          },
-          {
-            players: {
-              C: { players: ["C"], points: 0 },
-              B: { players: ["B"], points: 0 },
-            },
-            playing: 1,
-          },
-          {
-            type: "break",
-            players: ["C"],
-            playing: 0,
-          },
-          {
-            players: {
-              A: { players: ["A"], points: 0 },
-              B: { players: ["B"], points: 0 },
-            },
-            playing: 1,
-          },
-        ],
-        previous: [
-          {
-            type: "break",
+            finished: true,
             players: ["C"],
           },
           {
+            id: 1,
             type: "single",
-            players: ["B", "A"],
+            finished: true,
+            players: ["A", "B"],
+            points: [0, 0],
+          },
+          {
+            id: 2,
+            type: "break",
+            finished: true,
+            players: ["A"],
+          },
+          {
+            id: 3,
+            type: "single",
+            finished: true,
+            players: ["C", "B"],
+            points: [0, 0],
+          },
+          {
+            id: 4,
+            type: "break",
+            finished: true,
+            players: ["B"],
+          },
+          {
+            id: 5,
+            type: "single",
+            finished: true,
+            players: ["C", "A"],
+            points: [0, 0],
           },
         ],
+        gameIdsForPreviousScenario: new Set([4, 5]),
       });
 
       expect(next).toBeDefined();
-      // console.log(JSON.stringify(next, undefined, 4));
     });
   });
 });
