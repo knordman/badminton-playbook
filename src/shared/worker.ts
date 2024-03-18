@@ -57,14 +57,7 @@ self.addEventListener("message", async (event: MessageEvent<WorkerRequest>) => {
           if (result.finished) {
             finished.push(result);
           } else {
-            if (result.type === "break") {
-              writeResults.push({
-                id: result.id,
-                type: "break",
-                finished: 1,
-                players: result.players,
-              });
-            } else {
+            if (result.type !== "break") {
               const game = previousGames.get(result.id)!;
               if (game && game.type !== "break") {
                 const typedGamePlayers =
@@ -91,6 +84,17 @@ self.addEventListener("message", async (event: MessageEvent<WorkerRequest>) => {
                 });
               }
             }
+          }
+        }
+
+        for (const game of playing) {
+          if (game.type === "break") {
+            writeResults.push({
+              id: game.id!,
+              type: "break",
+              finished: 1,
+              players: game.players,
+            });
           }
         }
 
