@@ -16,7 +16,43 @@ export class Database extends Dexie {
 
   constructor() {
     super("Database");
+    this.version(1).stores({
+      players: null,
+      playing: null,
+      results: null,
+      context: null,
+    });
+    this.version(2).stores({
+      players: null,
+      playing: null,
+      results: null,
+      context: null,
+    });
+    this.version(3).stores({
+      players: null,
+      playing: null,
+      results: null,
+      context: null,
+    });
+    this.version(4).stores({
+      players: null,
+      playing: null,
+      results: null,
+      context: null,
+    });
+    this.version(5).stores({
+      players: null,
+      playing: null,
+      results: null,
+      context: null,
+    });
     this.version(6).stores({
+      players: null,
+      playing: null,
+      results: null,
+      context: null,
+    });
+    this.version(7).stores({
       players: "name",
       playing: "id++",
       results: "id,[type+finished]",
