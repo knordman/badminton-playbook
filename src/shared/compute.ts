@@ -256,10 +256,11 @@ function addOne(map: Map<string, number>, key: string) {
 }
 
 export function computeNextScenario(context: Context): Scenario {
-  const gameScoring = new Map<string, number>();
-  const pairScoring = new Map<string, number>();
+  const gameScores = new Map<string, number>();
+  const pairScoresForPrevious = new Map<string, number>();
   const numberOfSinglesByPlayer = new Map<string, number>();
   const numberOfDoublesByPlayer = new Map<string, number>();
+  const numberOfGamesByPair = new Map<string, number>();
   const breaks: string[] = [];
 
   for (const result of context.history) {
@@ -274,18 +275,40 @@ export function computeNextScenario(context: Context): Scenario {
         addOne(bucket, player);
       }
       // avoid playing same game
-      gameScoring.set(gameKey(result), -800);
+      gameScores.set(gameKey(result), -800);
 
-      if (
-        result.type === "double" &&
-        context.gameIdsForPreviousScenario.has(result.id)
-      ) {
-        // prefer keeping pair
-        pairScoring.set(pairKey(result.players[0]), 50);
-        pairScoring.set(pairKey(result.players[1]), 50);
+      if (result.type === "double") {
+        const pairOneKey = pairKey(result.players[0]);
+        const pairTwoKey = pairKey(result.players[1]);
+
+        if (context.gameIdsForPreviousScenario.has(result.id)) {
+          // prefer keeping pair of previous game
+          pairScoresForPrevious.set(pairOneKey, 50);
+          pairScoresForPrevious.set(pairTwoKey, 50);
+        }
+
+        addOne(numberOfGamesByPair, pairOneKey);
+        addOne(numberOfGamesByPair, pairTwoKey);
       }
     }
   }
+
+  const gameScoring = (game: Single | Double): number => {
+    return gameScores.get(gameKey(game)) ?? 0;
+  };
+
+  const pairsScoring = (double: Double): number => {
+    let output = 0;
+    for (const pair of double.players) {
+      const key = pairKey(pair);
+      output += pairScoresForPrevious.get(key) ?? 0;
+
+      const count = numberOfGamesByPair.get(key) ?? 0;
+      // prefer playing 3 games in a row
+      output += (count % 3) * 100 - Math.floor(count / 3) * 200;
+    }
+    return output;
+  };
 
   const playersByNumberOfSingles = new Map<number, Set<string>>();
   for (const [player, numberOfSingles] of numberOfSinglesByPlayer.entries()) {
@@ -298,18 +321,6 @@ export function computeNextScenario(context: Context): Scenario {
     }
     bucket.add(player);
   }
-  const playersByNumberOfDoubles = new Map<number, Set<string>>();
-  for (const [player, numberOfDoubles] of numberOfDoublesByPlayer.entries()) {
-    let bucket: Set<string>;
-    if (!playersByNumberOfDoubles.has(numberOfDoubles)) {
-      bucket = new Set();
-      playersByNumberOfDoubles.set(numberOfDoubles, bucket);
-    } else {
-      bucket = playersByNumberOfDoubles.get(numberOfDoubles)!;
-    }
-    bucket.add(player);
-  }
-
   const singleScoringByNumberOfSingles = projectProfile({
     items: [...playersByNumberOfSingles.keys()].sort((a, b) => b - a),
     profile: [150, 120, 100, 80, 60, 40, 20, 10],
@@ -322,6 +333,17 @@ export function computeNextScenario(context: Context): Scenario {
     );
   };
 
+  const playersByNumberOfDoubles = new Map<number, Set<string>>();
+  for (const [player, numberOfDoubles] of numberOfDoublesByPlayer.entries()) {
+    let bucket: Set<string>;
+    if (!playersByNumberOfDoubles.has(numberOfDoubles)) {
+      bucket = new Set();
+      playersByNumberOfDoubles.set(numberOfDoubles, bucket);
+    } else {
+      bucket = playersByNumberOfDoubles.get(numberOfDoubles)!;
+    }
+    bucket.add(player);
+  }
   const doubleScoringByNumberOfDoubles = projectProfile({
     items: [...playersByNumberOfDoubles.keys()].sort((a, b) => a - b),
     profile: [-80, -40, 0, 0],
@@ -334,32 +356,35 @@ export function computeNextScenario(context: Context): Scenario {
     );
   };
 
-  const breakScoring = projectProfile({
+  const breakScores = projectProfile({
     items: breaks.reverse(),
     profile: [-10000, -9000, -8000, -7000, -6000, -5000, -4000, -3000, -2000],
   });
+  const breakScoring = (player: string): number => {
+    return breakScores.get(player) ?? 0;
+  };
 
   const scored = new Map<number, Set<Scenario>>();
   for (const scenario of context.allScenarios) {
     let score = 0;
-    for (const part of scenario) {
-      if (part.type === "break") {
-        for (const player of part.players) {
-          score += breakScoring.get(player) ?? 0;
+    for (const game of scenario) {
+      if (game.type === "break") {
+        for (const player of game.players) {
+          score += breakScoring(player);
         }
-      } else if (part.type === "single") {
-        for (const player of part.players) {
-          score += singleScoring(player);
+      } else {
+        score += gameScoring(game);
+
+        if (game.type === "single") {
+          for (const player of game.players) {
+            score += singleScoring(player);
+          }
+        } else if (game.type === "double") {
+          for (const player of game.players.flat()) {
+            score += doubleScoring(player);
+          }
+          score += pairsScoring(game);
         }
-        score += gameScoring.get(gameKey(part)) ?? 0;
-      } else if (part.type === "double") {
-        for (const player of part.players.flat()) {
-          score += doubleScoring(player);
-        }
-        for (const pair of part.players) {
-          score += pairScoring.get(pairKey(pair)) ?? 0;
-        }
-        score += gameScoring.get(gameKey(part)) ?? 0;
       }
     }
     scored.set(score, (scored.get(score) ?? new Set()).add(scenario));
@@ -373,7 +398,10 @@ export function computeNextScenario(context: Context): Scenario {
   console.debug(
     `max score: ${sortedScores[0]} with ${bestScenarios.size} scenarios`
   );
-  const bestScenario = [...bestScenarios][0];
 
-  return bestScenario;
+  const chosen = [...bestScenarios][
+    Math.floor(Math.random() * bestScenarios.size)
+  ];
+
+  return chosen;
 }

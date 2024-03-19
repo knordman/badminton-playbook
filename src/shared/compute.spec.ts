@@ -109,6 +109,88 @@ describe("Scenarios", () => {
       });
 
       expect(next).toBeDefined();
+      expect(next.find((s) => s.type === "break")?.players).to.deep.equal([
+        "C",
+      ]);
+    });
+
+    it("returns another next scenario", () => {
+      const players = ["A", "B", "C", "D", "E", "F", "G", "H"];
+      const allScenarios = computeAllScenarios(players);
+
+      const next = computeNextScenario({
+        allScenarios,
+        history: [
+          // 1
+          {
+            id: 255,
+            finished: 1,
+            type: "double",
+            players: [
+              ["A", "B"],
+              ["C", "D"],
+            ],
+            points: [1, 1],
+          },
+          {
+            id: 256,
+            finished: 1,
+            type: "double",
+            players: [
+              ["E", "F"],
+              ["G", "H"],
+            ],
+            points: [1, 1],
+          },
+          // 2
+          {
+            id: 257,
+            finished: 1,
+            type: "double",
+            players: [
+              ["A", "B"],
+              ["E", "F"],
+            ],
+            points: [2, 2],
+          },
+          {
+            id: 258,
+            finished: 1,
+            type: "double",
+            players: [
+              ["C", "D"],
+              ["G", "H"],
+            ],
+            points: [2, 2],
+          },
+          // 3
+          {
+            id: 259,
+            finished: 1,
+            type: "double",
+            players: [
+              ["A", "B"],
+              ["G", "H"],
+            ],
+            points: [3, 3],
+          },
+          {
+            id: 260,
+            finished: 1,
+            type: "double",
+            players: [
+              ["C", "D"],
+              ["E", "F"],
+            ],
+            points: [3, 3],
+          },
+          // 4
+        ],
+        gameIdsForPreviousScenario: new Set([260, 259]),
+      });
+
+      // console.log(JSON.stringify(next, undefined, 4));
+      expect(next).toBeDefined();
     });
   });
 });
