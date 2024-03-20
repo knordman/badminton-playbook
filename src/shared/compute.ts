@@ -263,7 +263,7 @@ export function computeNextScenario(context: Context): Scenario {
   const numberOfGamesByPair = new Map<string, number>();
   const breaks: string[] = [];
 
-  for (const result of context.history) {
+  for (const [index, result] of context.history.entries()) {
     if (result.type === "break") {
       breaks.push(...result.players);
     } else {
@@ -274,8 +274,8 @@ export function computeNextScenario(context: Context): Scenario {
       for (const player of result.players.flat()) {
         addOne(bucket, player);
       }
-      // avoid playing same game
-      gameScores.set(gameKey(result), -800);
+      // avoid playing same game, the most for the most current ones
+      gameScores.set(gameKey(result), -900 + (context.history.length - index));
 
       if (result.type === "double") {
         const pairOneKey = pairKey(result.players[0]);
