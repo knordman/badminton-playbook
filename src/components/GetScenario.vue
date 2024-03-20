@@ -16,6 +16,7 @@ export default {
       resultsRegistered: ref<boolean>(false),
       resultsSubscription: ref<Subscription | undefined>(undefined),
       buttonText: ref<string>("Start"),
+      computingNext: <boolean>false,
     };
   },
 
@@ -67,10 +68,17 @@ export default {
 
   methods: {
     async nextScenario() {
-      if (this.activeContext) {
-        this.unsubscribeResults();
-        await computeNextScenarioWithWorker();
-        await this.subscribeToResults();
+      if (this.activeContext && !this.computingNext) {
+        try {
+          this.computingNext = true; // "debounce"
+          this.unsubscribeResults();
+          await computeNextScenarioWithWorker();
+          await this.subscribeToResults();
+        } catch (err) {
+          console.error(err);
+        } finally {
+          this.computingNext = false;
+        }
       }
     },
     async subscribeToResults() {
