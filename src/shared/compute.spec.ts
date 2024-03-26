@@ -2,8 +2,11 @@ import { describe, expect, it } from "vitest";
 import {
   computeAllScenarios,
   computeNextScenario,
+  findMinMax,
   projectProfile,
 } from "./compute";
+import { computeStatistics } from "./history";
+import type { FinishedGame } from "./scenarios";
 
 describe("Scenarios", () => {
   describe("Ranking", () => {
@@ -191,6 +194,91 @@ describe("Scenarios", () => {
 
       // console.log(JSON.stringify(next, undefined, 4));
       expect(next).toBeDefined();
+    });
+
+    it("balances games", () => {
+      const players = ["A", "B", "C", "D", "E", "F", "G"];
+      const allScenarios = computeAllScenarios(players);
+
+      const history: FinishedGame[] = [];
+
+      let id = 0;
+      const total = 14;
+      let gameIdsForPreviousScenario: Set<number> | undefined;
+
+      for (let i = 0; i < total; i++) {
+        const next = computeNextScenario({
+          allScenarios,
+          history,
+          gameIdsForPreviousScenario:
+            gameIdsForPreviousScenario ?? new Set<number>(),
+        });
+
+        gameIdsForPreviousScenario = new Set<number>();
+        for (const game of next) {
+          if (game.type === "break") {
+            const idGame = id++;
+            gameIdsForPreviousScenario.add(idGame);
+            history.push({
+              type: "break",
+              finished: 1,
+              id: idGame,
+              players: game.players,
+            });
+          } else if (game.type === "single") {
+            const idGame = id++;
+            gameIdsForPreviousScenario.add(idGame);
+            history.push({
+              type: "single",
+              finished: 1,
+              id: idGame,
+              players: game.players,
+              points: [11, 0],
+            });
+          } else {
+            const idGame = id++;
+            gameIdsForPreviousScenario.add(idGame);
+            history.push({
+              type: "double",
+              finished: 1,
+              id: idGame,
+              players: game.players,
+              points: [5, 11],
+            });
+          }
+        }
+      }
+
+      const breaks = new Map(
+        [...computeStatistics(history).entries()].map(([n, p]) => [
+          n,
+          total - p.played,
+        ])
+      );
+      // console.log("break", breaks);
+
+      const doubles = new Map(
+        [...computeStatistics(history).entries()].map(([n, p]) => [
+          n,
+          p.doubles,
+        ])
+      );
+      // console.log("doubles", doubles);a
+
+      const singles = new Map(
+        [...computeStatistics(history).entries()].map(([n, p]) => [
+          n,
+          p.singles,
+        ])
+      );
+      // console.log("singles", singles);
+
+      const breaksStats = findMinMax(breaks);
+      const singlesStats = findMinMax(singles);
+      const doublesStats = findMinMax(doubles);
+      expect(breaksStats.max - breaksStats.min).to.be.lessThan(1);
+      expect(singlesStats.max - singlesStats.min).to.be.lessThan(3);
+      expect(doublesStats.max - doublesStats.min).to.be.lessThan(3);
     });
   });
 });

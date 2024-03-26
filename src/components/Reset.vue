@@ -20,6 +20,7 @@ export default {
 </script>
 
 <template>
+  <!-- <v-btn class="ml-auto mr-2" variant="elevated">Export</v-btn> -->
   <v-dialog width="500">
     <template v-slot:activator="{ props }">
       <v-btn v-bind="props" class="ml-auto" variant="elevated">Reset</v-btn>

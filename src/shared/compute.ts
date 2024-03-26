@@ -235,6 +235,39 @@ export function projectProfile<Item extends string | number>(spec: {
   return map;
 }
 
+export function findMinMax(
+  map: Map<string, number>,
+  defaults?: { max?: number; min?: number }
+): {
+  min: number;
+  max: number;
+} {
+  let max = -Infinity;
+  let min = Infinity;
+  for (const value of map.values()) {
+    if (value > max) {
+      max = value;
+    }
+    if (value < min) {
+      min = value;
+    }
+  }
+  return {
+    min:
+      min === Infinity
+        ? defaults?.min !== undefined
+          ? defaults.min
+          : min
+        : min,
+    max:
+      max === -Infinity
+        ? defaults?.max !== undefined
+          ? defaults.max
+          : max
+        : max,
+  };
+}
+
 export type Context = {
   history: FinishedGame[];
   gameIdsForPreviousScenario: Set<number>;
@@ -258,14 +291,16 @@ function addOne(map: Map<string, number>, key: string) {
 export function computeNextScenario(context: Context): Scenario {
   const gameScores = new Map<string, number>();
   const pairScoresForPrevious = new Map<string, number>();
+  const numberOfBreaksByPlayer = new Map<string, number>();
   const numberOfSinglesByPlayer = new Map<string, number>();
   const numberOfDoublesByPlayer = new Map<string, number>();
   const numberOfGamesByPair = new Map<string, number>();
-  const breaks: string[] = [];
 
   for (const [index, result] of context.history.entries()) {
     if (result.type === "break") {
-      breaks.push(...result.players);
+      for (const player of result.players) {
+        addOne(numberOfBreaksByPlayer, player);
+      }
     } else {
       const bucket =
         result.type === "single"
@@ -310,58 +345,18 @@ export function computeNextScenario(context: Context): Scenario {
     return output;
   };
 
-  const playersByNumberOfSingles = new Map<number, Set<string>>();
-  for (const [player, numberOfSingles] of numberOfSinglesByPlayer.entries()) {
-    let bucket: Set<string>;
-    if (!playersByNumberOfSingles.has(numberOfSingles)) {
-      bucket = new Set();
-      playersByNumberOfSingles.set(numberOfSingles, bucket);
-    } else {
-      bucket = playersByNumberOfSingles.get(numberOfSingles)!;
-    }
-    bucket.add(player);
-  }
-  const singleScoringByNumberOfSingles = projectProfile({
-    items: [...playersByNumberOfSingles.keys()].sort((a, b) => b - a),
-    profile: [150, 120, 100, 80, 60, 40, 20, 10],
+  const { max: maxBreaks } = findMinMax(numberOfBreaksByPlayer, { max: 0 });
+  const breakScoring = (player: string): number => {
+    const forPlayer = numberOfBreaksByPlayer.get(player) ?? 0;
+    return (maxBreaks - forPlayer) * 3000;
+  };
+
+  const { max: maxSinglesPlayed } = findMinMax(numberOfSinglesByPlayer, {
+    max: 0,
   });
   const singleScoring = (player: string): number => {
-    return (
-      singleScoringByNumberOfSingles.get(
-        numberOfSinglesByPlayer.get(player)!
-      ) ?? 0
-    );
-  };
-
-  const playersByNumberOfDoubles = new Map<number, Set<string>>();
-  for (const [player, numberOfDoubles] of numberOfDoublesByPlayer.entries()) {
-    let bucket: Set<string>;
-    if (!playersByNumberOfDoubles.has(numberOfDoubles)) {
-      bucket = new Set();
-      playersByNumberOfDoubles.set(numberOfDoubles, bucket);
-    } else {
-      bucket = playersByNumberOfDoubles.get(numberOfDoubles)!;
-    }
-    bucket.add(player);
-  }
-  const doubleScoringByNumberOfDoubles = projectProfile({
-    items: [...playersByNumberOfDoubles.keys()].sort((a, b) => a - b),
-    profile: [-80, -40, 0, 0],
-  });
-  const doubleScoring = (player: string): number => {
-    return (
-      doubleScoringByNumberOfDoubles.get(
-        numberOfDoublesByPlayer.get(player)!
-      ) ?? 0
-    );
-  };
-
-  const breakScores = projectProfile({
-    items: breaks.reverse(),
-    profile: [-10000, -9000, -8000, -7000, -6000, -5000, -4000, -3000, -2000],
-  });
-  const breakScoring = (player: string): number => {
-    return breakScores.get(player) ?? 0;
+    const forPlayer = numberOfSinglesByPlayer.get(player) ?? 0;
+    return (maxSinglesPlayed - forPlayer) * 800;
   };
 
   const scored = new Map<number, Set<Scenario>>();
@@ -380,9 +375,9 @@ export function computeNextScenario(context: Context): Scenario {
             score += singleScoring(player);
           }
         } else if (game.type === "double") {
-          for (const player of game.players.flat()) {
-            score += doubleScoring(player);
-          }
+          // for (const player of game.players.flat()) {
+          //   score += doubleScoring(player);
+          // }
           score += pairsScoring(game);
         }
       }
@@ -394,7 +389,7 @@ export function computeNextScenario(context: Context): Scenario {
 
   const bestScenarios = scored.get(sortedScores[0])!;
 
-  console.debug(`scenarios: ${scored.size}`);
+  console.debug(`scored scenario groups: ${scored.size}`);
   console.debug(
     `max score: ${sortedScores[0]} with ${bestScenarios.size} scenarios`
   );
