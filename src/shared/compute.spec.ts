@@ -260,7 +260,7 @@ describe("Scenarios", () => {
       const doubles = new Map(
         [...computeStatistics(history).entries()].map(([n, p]) => [
           n,
-          p.doubles,
+          p.doubles.played,
         ])
       );
       // console.log("doubles", doubles);a
@@ -268,7 +268,7 @@ describe("Scenarios", () => {
       const singles = new Map(
         [...computeStatistics(history).entries()].map(([n, p]) => [
           n,
-          p.singles,
+          p.singles.played,
         ])
       );
       // console.log("singles", singles);
