@@ -336,7 +336,10 @@ export function computeNextScenario(context: Context): Scenario {
         addOne(bucket, player);
       }
       // avoid playing same game, the most for the most current ones
-      gameScores.set(gameKey(result), -900 + (context.history.length - index));
+      gameScores.set(
+        gameKey(result),
+        -900 + (context.history.length - index) * 51
+      );
 
       if (result.type === "double") {
         const pairOneKey = pairKey(result.players[0]);

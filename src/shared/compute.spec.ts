@@ -263,7 +263,7 @@ describe("Scenarios", () => {
           p.doubles.played,
         ])
       );
-      // console.log("doubles", doubles);a
+      // console.log("doubles", doubles);
 
       const singles = new Map(
         [...computeStatistics(history).entries()].map(([n, p]) => [
@@ -290,6 +290,83 @@ describe("Scenarios", () => {
         expect(scenario.length).toBe(1);
         expect(scenario[0].type).toBe("double");
       }
+    });
+
+
+    it("avoids repeating same game on single field", () => {
+      const players = ["A", "B", "C", "D"];
+      const allScenarios = computeAllScenarios(players, 1);
+
+      const next = computeNextScenario({
+        allScenarios,
+        history: [
+          {
+            "id": 44,
+            "finished": 1,
+            "type": "double",
+            "players": [
+              [
+                "A",
+                "D"
+              ],
+              [
+                "B",
+                "C"
+              ]
+            ],
+            "points": [
+              11,
+              1
+            ]
+          },
+          {
+            "id": 45,
+            "finished": 1,
+            "type": "double",
+            "players": [
+              [
+                "A",
+                "B"
+              ],
+              [
+                "C",
+                "D"
+              ]
+            ],
+            "points": [
+              11,
+              1
+            ]
+          },
+          {
+            "id": 46,
+            "finished": 1,
+            "type": "double",
+            "players": [
+              [
+                "A",
+                "C"
+              ],
+              [
+                "B",
+                "D"
+              ]
+            ],
+            "points": [
+              11,
+              1
+            ]
+          }
+        ],
+        gameIdsForPreviousScenario: new Set([46]),
+      });
+
+      // console.log(JSON.stringify(next, undefined, 4));q
+      expect(next).toBeDefined();
+      expect(next[0].players).not.to.deep.equal([
+        ["A", "C"],
+        ["B", "D"],
+      ]);
     });
   });
 });
