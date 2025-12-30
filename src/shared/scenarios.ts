@@ -76,7 +76,10 @@ export function isPlayable(numberOfPlayers: number): boolean {
 }
 
 export function getActiveContext(
-  players: string[]
+  players: string[],
+  numberOfFields: number
 ): PlayersContext["value"] | undefined {
-  return isPlayable(players.length) ? players.sort().join("-") : undefined;
+  return isPlayable(players.length)
+    ? `${players.sort().join("-")}:${numberOfFields}`
+    : undefined;
 }

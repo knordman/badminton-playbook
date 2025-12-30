@@ -24,18 +24,20 @@ export default {
 </script>
 
 <template>
-  <div v-if="players && players.length > 0">
-    <v-list class="list-of-players">
-      <v-list-item
-        v-for="player of players"
-        :key="player.name"
-        :title="player.name"
-        append-icon="mdi-close"
-        @click="removePlayer(player.name, $event)"
-      ></v-list-item>
-    </v-list>
+  <div class="d-flex-row">
+    <div v-if="players && players.length > 0">
+      <v-list class="list-of-players">
+        <v-list-item
+          v-for="player of players"
+          :key="player.name"
+          :title="player.name"
+          append-icon="mdi-close"
+          @click="removePlayer(player.name, $event)"
+        ></v-list-item>
+      </v-list>
+    </div>
+    <div v-else class="fallback">No players added yet</div>
   </div>
-  <div v-else class="fallback">No players added yet</div>
 </template>
 
 <style>

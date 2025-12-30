@@ -1,5 +1,5 @@
 import { computeAllScenarios, computeNextScenario } from "@/shared/compute";
-import { db, playersContextId } from "@/shared/db";
+import { db, numberOfFieldsSettingId, playersContextId } from "@/shared/db";
 import {
   getActiveContext,
   type Double,
@@ -32,8 +32,7 @@ function findPointsForPlayer(context: {
   }
 
   throw new Error(
-    `could not find points for game ${
-      context.result.id
+    `could not find points for game ${context.result.id
     } and player ${JSON.stringify(context.player)}`
   );
 }
@@ -42,10 +41,14 @@ self.addEventListener("message", async (event: MessageEvent<WorkerRequest>) => {
   const [players, activeContext, gameIdsForPreviousScenario, history] =
     await db.transaction(
       "rw",
-      [db.players, db.results, db.playing, db.context],
+      [db.players, db.results, db.playing, db.context, db.settings],
       async () => {
         const players = await db.players.toArray();
-        const activeContext = getActiveContext(players.map((p) => p.name));
+        const numberOfFields = await db.settings.get(numberOfFieldsSettingId);
+        const activeContext = getActiveContext(
+          players.map((p) => p.name),
+          numberOfFields?.value ?? 2
+        );
         const playing = await db.playing.toArray();
         const storedResults = await db.results.toArray();
 
@@ -110,7 +113,11 @@ self.addEventListener("message", async (event: MessageEvent<WorkerRequest>) => {
       }
     );
 
-  const allScenarios = computeAllScenarios(players);
+  const numberOfFields = await db.settings.get(numberOfFieldsSettingId);
+  const allScenarios = computeAllScenarios(
+    players,
+    numberOfFields?.value ?? 2
+  );
   const next = computeNextScenario({
     allScenarios,
     gameIdsForPreviousScenario,

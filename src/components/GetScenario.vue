@@ -1,5 +1,5 @@
 <script lang="ts">
-import { db, playersContextId } from "@/shared/db";
+import { db, numberOfFieldsSettingId, playersContextId } from "@/shared/db";
 import {
   computeNextScenarioWithWorker,
   gameIsFinished,
@@ -17,28 +17,39 @@ export default {
       resultsSubscription: ref<Subscription | undefined>(undefined),
       buttonText: ref<string>("Start"),
       computingNext: <boolean>false,
+      fields: ref<"One" | "Two">("Two"),
     };
   },
 
   async mounted() {
-    const { activeContext, storedContext } = await db.transaction(
+    const { activeContext, storedContext, numberOfFields } = await db.transaction(
       "r",
-      [db.players, db.context],
+      [db.players, db.context, db.settings],
       async () => {
-        const players = await db.players.toArray();
-        const activeContext = getActiveContext(players.map((p) => p.name));
-        const storedContext = await db.context.get(playersContextId);
+        const [players, numberOfFields, storedContext] = await Promise.all([
+          db.players.toArray(),
+          db.settings.get(numberOfFieldsSettingId),
+          db.context.get(playersContextId),
+        ]);
+        const activeContext = getActiveContext(
+          players.map((p) => p.name),
+          numberOfFields?.value ?? 2
+        );
 
         return {
           players,
           storedContext: storedContext?.value,
           activeContext,
+          numberOfFields: numberOfFields?.value,
         };
       }
     );
+
     if (activeContext) {
       this.activeContext = activeContext;
     }
+
+    this.fields = numberOfFields === 1 ? "One" : "Two";
 
     if (storedContext) {
       if (storedContext !== this.activeContext) {
@@ -116,17 +127,41 @@ export default {
       this.resultsSubscription = undefined;
     },
   },
+
+  watch: {
+    async fields(newValue: "One" | "Two") {
+      const { activeContext } = await db.transaction(
+        "rw",
+        [db.settings, db.playing, db.context, db.players],
+        async () => {
+          await db.settings.put({
+            id: numberOfFieldsSettingId,
+            value: newValue === "One" ? 1 : 2,
+          });
+          await db.playing.clear();
+          await db.context.delete(playersContextId);
+
+          const players = await db.players.toArray();
+          const activeContext = getActiveContext(
+            players.map((p) => p.name),
+            newValue === "One" ? 1 : 2
+          );
+          return { activeContext };
+        }
+      );
+
+      this.activeContext = activeContext;
+      this.unsubscribeResults();
+      this.buttonText = "Start";
+    },
+  },
 };
 </script>
 
 <template>
-  <v-btn
-    class="ml-auto"
-    variant="elevated"
-    :disabled="disabled"
-    @click="nextScenario"
-    >{{ buttonText }}</v-btn
-  >
+  <v-switch class="mt-5 ml-2" v-model="fields" :label="fields === 'Two' ? 'Two fields' : 'One field'" true-value="Two"
+    false-value="One"></v-switch>
+  <v-btn class="ml-auto" variant="elevated" :disabled="disabled" @click="nextScenario">{{ buttonText }}</v-btn>
 </template>
 
 <style></style>

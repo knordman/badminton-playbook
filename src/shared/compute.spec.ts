@@ -63,7 +63,7 @@ describe("Scenarios", () => {
   describe("Next scenario", () => {
     it("returns next scenario", () => {
       const players = ["A", "B", "C"];
-      const allScenarios = computeAllScenarios(players);
+      const allScenarios = computeAllScenarios(players, 2);
 
       const next = computeNextScenario({
         allScenarios,
@@ -119,7 +119,7 @@ describe("Scenarios", () => {
 
     it("returns another next scenario", () => {
       const players = ["A", "B", "C", "D", "E", "F", "G", "H"];
-      const allScenarios = computeAllScenarios(players);
+      const allScenarios = computeAllScenarios(players, 2);
 
       const next = computeNextScenario({
         allScenarios,
@@ -198,7 +198,7 @@ describe("Scenarios", () => {
 
     it("balances games", () => {
       const players = ["A", "B", "C", "D", "E", "F", "G"];
-      const allScenarios = computeAllScenarios(players);
+      const allScenarios = computeAllScenarios(players, 2);
 
       const history: FinishedGame[] = [];
 
@@ -279,6 +279,17 @@ describe("Scenarios", () => {
       expect(breaksStats.max - breaksStats.min).to.be.lessThan(1);
       expect(singlesStats.max - singlesStats.min).to.be.lessThan(3);
       expect(doublesStats.max - doublesStats.min).to.be.lessThan(3);
+    });
+
+    it("generates single game for 1 field", () => {
+      const players = ["A", "B", "C", "D"];
+      const allScenarios = computeAllScenarios(players, 1);
+
+      expect(allScenarios.length).toBeGreaterThan(0);
+      for (const scenario of allScenarios) {
+        expect(scenario.length).toBe(1);
+        expect(scenario[0].type).toBe("double");
+      }
     });
   });
 });
