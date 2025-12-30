@@ -85,30 +85,56 @@ function* generateScenarios(
 
 type ConcurrentGames = { single: number; double: number; break: number };
 
-function getConcurrentGames(numberOfPlayers: number): ConcurrentGames {
-  switch (numberOfPlayers) {
-    case 2:
-      return { single: 1, double: 0, break: 0 };
-    case 3:
-      return { single: 1, double: 0, break: 1 };
-    case 4:
-      return { single: 2, double: 0, break: 0 };
-    case 5:
-      return { single: 2, double: 0, break: 1 };
-    case 6:
-      return { single: 1, double: 1, break: 0 };
-    case 7:
-      return { single: 1, double: 1, break: 1 };
-    case 8:
-      return { single: 0, double: 2, break: 0 };
-    case 9:
-      return { single: 0, double: 2, break: 1 };
-    default:
-      throw new Error(`unhandled number of players: ${numberOfPlayers}`);
+function getConcurrentGames(
+  numberOfPlayers: number,
+  numberOfFields: 1 | 2
+): ConcurrentGames {
+  if (numberOfFields === 1) {
+    switch (numberOfPlayers) {
+      case 2:
+        return { single: 1, double: 0, break: 0 };
+      case 3:
+        return { single: 1, double: 0, break: 1 };
+      case 4:
+        return { single: 0, double: 1, break: 0 };
+      case 5:
+        return { single: 0, double: 1, break: 1 };
+      case 6:
+        return { single: 0, double: 1, break: 2 };
+      case 7:
+        return { single: 0, double: 1, break: 3 };
+      case 8:
+        return { single: 0, double: 1, break: 4 };
+      case 9:
+        return { single: 0, double: 1, break: 5 };
+    }
+  } else {
+    switch (numberOfPlayers) {
+      case 2:
+        return { single: 1, double: 0, break: 0 };
+      case 3:
+        return { single: 1, double: 0, break: 1 };
+      case 4:
+        return { single: 2, double: 0, break: 0 };
+      case 5:
+        return { single: 2, double: 0, break: 1 };
+      case 6:
+        return { single: 1, double: 1, break: 0 };
+      case 7:
+        return { single: 1, double: 1, break: 1 };
+      case 8:
+        return { single: 0, double: 2, break: 0 };
+      case 9:
+        return { single: 0, double: 2, break: 1 };
+    }
   }
+  throw new Error(`unhandled number of players: ${numberOfPlayers}`);
 }
 
-export function computeAllScenarios(participants: string[]): Scenario[] {
+export function computeAllScenarios(
+  participants: string[],
+  numberOfFields: 1 | 2
+): Scenario[] {
   const numberOfPlayers = participants.length;
   const pairs = <[string, string][]>generateCombinationsOfSize(participants, 2);
 
@@ -121,7 +147,7 @@ export function computeAllScenarios(participants: string[]): Scenario[] {
     )
   );
 
-  const games = getConcurrentGames(numberOfPlayers);
+  const games = getConcurrentGames(numberOfPlayers, numberOfFields);
 
   const scenarios: Scenario[] = [];
 
