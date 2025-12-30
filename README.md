@@ -1,6 +1,6 @@
 # badminton-playbook
 
-Badminton Playbook is designed to simplify the process of creating random game combinations of badminton, catering to player counts between 2 and 9. Currently there is a fixed amount of two fields (hence at most two parallel games). 
+Badminton Playbook automates the generation of randomized game configurations for 2 to 9 players across one or two fields. The system supports real-time adjustments, allowing users to add or remove players and modify field counts at any time for instant re-calculation of match pairings.
 
 Check it out here: https://knordman.github.io/badminton-playbook/
 
