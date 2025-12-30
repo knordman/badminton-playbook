@@ -1,0 +1,4 @@
+packages:
+    - badminton-playbook
+minimumReleaseAge: 4320 # in minutes (3 days)
+trustPolicy: no-downgrade
