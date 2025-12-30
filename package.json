@@ -13,24 +13,24 @@
   },
   "dependencies": {
     "@mdi/font": "^7.4.47",
-    "@vueuse/rxjs": "^10.9.0",
-    "dexie": "^3.2.6",
-    "rxjs": "^7.8.1",
-    "vue": "^3.4.21",
-    "vue-router": "^4.3.0",
-    "vuetify": "^3.5.9"
+    "@vueuse/rxjs": "^10.11.1",
+    "dexie": "^3.2.7",
+    "rxjs": "^7.8.2",
+    "vue": "^3.5.26",
+    "vue-router": "^4.6.4",
+    "vuetify": "^3.11.6"
   },
   "devDependencies": {
-    "@tsconfig/node20": "^20.1.2",
-    "@types/node": "^20.11.28",
-    "@vitejs/plugin-vue": "^5.0.3",
+    "@tsconfig/node20": "^20.1.8",
+    "@types/node": "^20.19.27",
+    "@vitejs/plugin-vue": "^5.2.4",
     "@vue/tsconfig": "^0.5.1",
-    "npm-run-all2": "^6.1.1",
-    "typescript": "~5.4.2",
-    "vite": "^5.1.6",
-    "vite-plugin-pwa": "^0.19.5",
-    "vite-plugin-vuetify": "^2.0.3",
-    "vitest": "^1.4.0",
-    "vue-tsc": "^2.0.6"
+    "npm-run-all2": "^6.2.6",
+    "typescript": "~5.4.5",
+    "vite": "^5.4.21",
+    "vite-plugin-pwa": "^0.19.8",
+    "vite-plugin-vuetify": "^2.1.2",
+    "vitest": "^1.6.1",
+    "vue-tsc": "^2.2.12"
   }
 }
