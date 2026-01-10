@@ -4,7 +4,9 @@ import {
   computeNextScenario,
   findMinMax,
   projectProfile,
+  type Context,
 } from "./compute";
+import { consoleLogHistory } from "./debug";
 import { computeStatistics } from "./history";
 import type { FinishedGame } from "./scenarios";
 
@@ -292,7 +294,6 @@ describe("Scenarios", () => {
       }
     });
 
-
     it("avoids repeating same game on single field", () => {
       const players = ["A", "B", "C", "D"];
       const allScenarios = computeAllScenarios(players, 1);
@@ -301,72 +302,383 @@ describe("Scenarios", () => {
         allScenarios,
         history: [
           {
-            "id": 44,
-            "finished": 1,
-            "type": "double",
-            "players": [
-              [
-                "A",
-                "D"
-              ],
-              [
-                "B",
-                "C"
-              ]
+            id: 44,
+            finished: 1,
+            type: "double",
+            players: [
+              ["A", "D"],
+              ["B", "C"],
             ],
-            "points": [
-              11,
-              1
-            ]
+            points: [11, 1],
           },
           {
-            "id": 45,
-            "finished": 1,
-            "type": "double",
-            "players": [
-              [
-                "A",
-                "B"
-              ],
-              [
-                "C",
-                "D"
-              ]
+            id: 45,
+            finished: 1,
+            type: "double",
+            players: [
+              ["A", "B"],
+              ["C", "D"],
             ],
-            "points": [
-              11,
-              1
-            ]
+            points: [11, 1],
           },
           {
-            "id": 46,
-            "finished": 1,
-            "type": "double",
-            "players": [
-              [
-                "A",
-                "C"
-              ],
-              [
-                "B",
-                "D"
-              ]
+            id: 46,
+            finished: 1,
+            type: "double",
+            players: [
+              ["A", "C"],
+              ["B", "D"],
             ],
-            "points": [
-              11,
-              1
-            ]
-          }
+            points: [11, 1],
+          },
         ],
         gameIdsForPreviousScenario: new Set([46]),
       });
 
-      // console.log(JSON.stringify(next, undefined, 4));q
+      // console.log(JSON.stringify(next, undefined, 4));
       expect(next).toBeDefined();
       expect(next[0].players).not.to.deep.equal([
         ["A", "C"],
         ["B", "D"],
       ]);
+    });
+
+    it("does not break same player in a row", () => {
+      const players = ["A", "B", "C", "D", "E", "F", "G"];
+      const allScenarios = computeAllScenarios(players, 2);
+      const history = [
+        {
+          id: 14,
+          type: "break",
+          finished: 1,
+          players: ["C"],
+        },
+        {
+          id: 15,
+          finished: 1,
+          type: "single",
+          players: ["B", "D"],
+          points: [11, 4],
+        },
+        {
+          id: 16,
+          finished: 1,
+          type: "double",
+          players: [
+            ["A", "E"],
+            ["G", "F"],
+          ],
+          points: [10, 12],
+        },
+        {
+          id: 17,
+          type: "break",
+          finished: 1,
+          players: ["E"],
+        },
+        {
+          id: 18,
+          finished: 1,
+          type: "single",
+          players: ["A", "C"],
+          points: [11, 5],
+        },
+        {
+          id: 19,
+          finished: 1,
+          type: "double",
+          players: [
+            ["B", "D"],
+            ["G", "F"],
+          ],
+          points: [4, 11],
+        },
+        {
+          id: 20,
+          type: "break",
+          finished: 1,
+          players: ["F"],
+        },
+        {
+          id: 21,
+          finished: 1,
+          type: "single",
+          players: ["E", "G"],
+          points: [11, 8],
+        },
+        {
+          id: 22,
+          finished: 1,
+          type: "double",
+          players: [
+            ["A", "C"],
+            ["B", "D"],
+          ],
+          points: [11, 9],
+        },
+        {
+          id: 23,
+          type: "break",
+          finished: 1,
+          players: ["G"],
+        },
+        {
+          id: 24,
+          finished: 1,
+          type: "single",
+          players: ["F", "C"],
+          points: [11, 6],
+        },
+        {
+          id: 25,
+          finished: 1,
+          type: "double",
+          players: [
+            ["A", "E"],
+            ["B", "D"],
+          ],
+          points: [11, 6],
+        },
+        {
+          id: 26,
+          type: "break",
+          finished: 1,
+          players: ["D"],
+        },
+        {
+          id: 27,
+          finished: 1,
+          type: "single",
+          players: ["E", "B"],
+          points: [11, 8],
+        },
+        {
+          id: 28,
+          finished: 1,
+          type: "double",
+          players: [
+            ["A", "C"],
+            ["G", "F"],
+          ],
+          points: [11, 8],
+        },
+        {
+          id: 29,
+          type: "break",
+          finished: 1,
+          players: ["B"],
+        },
+        {
+          id: 30,
+          finished: 1,
+          type: "single",
+          players: ["F", "D"],
+          points: [11, 6],
+        },
+        {
+          id: 31,
+          finished: 1,
+          type: "double",
+          players: [
+            ["A", "C"],
+            ["E", "G"],
+          ],
+          points: [9, 11],
+        },
+        {
+          id: 32,
+          type: "break",
+          finished: 1,
+          players: ["A"],
+        },
+        {
+          id: 33,
+          finished: 1,
+          type: "single",
+          players: ["G", "F"],
+          points: [5, 11],
+        },
+        {
+          id: 34,
+          finished: 1,
+          type: "double",
+          players: [
+            ["E", "D"],
+            ["B", "C"],
+          ],
+          points: [11, 8],
+        },
+        {
+          id: 35,
+          type: "break",
+          finished: 1,
+          players: ["F"],
+        },
+        {
+          id: 36,
+          finished: 1,
+          type: "single",
+          players: ["A", "D"],
+          points: [11, 3],
+        },
+        {
+          id: 37,
+          finished: 1,
+          type: "double",
+          players: [
+            ["E", "G"],
+            ["B", "C"],
+          ],
+          points: [9, 11],
+        },
+        {
+          id: 38,
+          type: "break",
+          finished: 1,
+          players: ["B"],
+        },
+        {
+          id: 39,
+          finished: 1,
+          type: "single",
+          players: ["A", "C"],
+          points: [11, 6],
+        },
+        {
+          id: 40,
+          finished: 1,
+          type: "double",
+          players: [
+            ["E", "G"],
+            ["F", "D"],
+          ],
+          points: [12, 10],
+        },
+        {
+          id: 41,
+          type: "break",
+          finished: 1,
+          players: ["A"],
+        },
+        {
+          id: 42,
+          finished: 1,
+          type: "single",
+          players: ["E", "G"],
+          points: [11, 5],
+        },
+        {
+          id: 43,
+          finished: 1,
+          type: "double",
+          players: [
+            ["B", "C"],
+            ["F", "D"],
+          ],
+          points: [11, 7],
+        },
+        {
+          id: 44,
+          type: "break",
+          finished: 1,
+          players: ["C"],
+        },
+        {
+          id: 45,
+          finished: 1,
+          type: "single",
+          players: ["B", "D"],
+          points: [11, 7],
+        },
+        {
+          id: 46,
+          finished: 1,
+          type: "double",
+          players: [
+            ["A", "E"],
+            ["G", "F"],
+          ],
+          points: [11, 9],
+        },
+        {
+          id: 47,
+          type: "break",
+          finished: 1,
+          players: ["G"],
+        },
+        {
+          id: 48,
+          finished: 1,
+          type: "single",
+          players: ["F", "C"],
+          points: [11, 8],
+        },
+        {
+          id: 49,
+          finished: 1,
+          type: "double",
+          players: [
+            ["A", "B"],
+            ["E", "D"],
+          ],
+          points: [6, 11],
+        },
+        {
+          id: 50,
+          type: "break",
+          finished: 1,
+          players: ["D"],
+        },
+        {
+          id: 51,
+          finished: 1,
+          type: "single",
+          players: ["E", "B"],
+          points: [11, 5],
+        },
+        {
+          id: 52,
+          finished: 1,
+          type: "double",
+          players: [
+            ["A", "G"],
+            ["F", "C"],
+          ],
+          points: [14, 16],
+        },
+        {
+          id: 53,
+          type: "break",
+          finished: 1,
+          players: ["E"],
+        },
+        {
+          id: 54,
+          finished: 1,
+          type: "single",
+          players: ["A", "G"],
+          points: [5, 11],
+        },
+        {
+          id: 55,
+          finished: 1,
+          type: "double",
+          players: [
+            ["B", "F"],
+            ["C", "D"],
+          ],
+          points: [11, 8],
+        },
+      ] satisfies Context["history"];
+
+      const next = computeNextScenario({
+        allScenarios,
+        history,
+        gameIdsForPreviousScenario: new Set([53, 54, 55]),
+      });
+
+      expect(next).toBeDefined();
+      expect(next[0].players).not.to.deep.equal(["E"]);
     });
   });
 });

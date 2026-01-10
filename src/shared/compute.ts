@@ -300,17 +300,17 @@ export type Context = {
   allScenarios: Scenario[];
 };
 
-function pairKey(pair: [string, string]): string {
+export function pairKey(pair: [string, string]): string {
   return pair.sort().join("-");
 }
 
-function gameKey(game: Single | Double) {
+export function gameKey(game: Single | Double) {
   return game.type === "single"
     ? pairKey(game.players)
     : pairKey([pairKey(game.players[0]), pairKey(game.players[1])]);
 }
 
-function addOne(map: Map<string, number>, key: string) {
+export function addOne(map: Map<string, number>, key: string) {
   map.set(key, map.has(key) ? map.get(key)! + 1 : 1);
 }
 
@@ -321,11 +321,14 @@ export function computeNextScenario(context: Context): Scenario {
   const numberOfSinglesByPlayer = new Map<string, number>();
   const numberOfDoublesByPlayer = new Map<string, number>();
   const numberOfGamesByPair = new Map<string, number>();
+  const playedRounds = context.history.length;
+  const breakDistanceByPlayer = new Map<string, number>();
 
   for (const [index, result] of context.history.entries()) {
     if (result.type === "break") {
       for (const player of result.players) {
         addOne(numberOfBreaksByPlayer, player);
+        breakDistanceByPlayer.set(player, playedRounds - index);
       }
     } else {
       const bucket =
@@ -335,10 +338,11 @@ export function computeNextScenario(context: Context): Scenario {
       for (const player of result.players.flat()) {
         addOne(bucket, player);
       }
+
       // avoid playing same game, the most for the most current ones
       gameScores.set(
         gameKey(result),
-        -900 + (context.history.length - index) * 51
+        ((index + 1) / context.history.length) * -(context.history.length * 55)
       );
 
       if (result.type === "double") {
@@ -361,15 +365,20 @@ export function computeNextScenario(context: Context): Scenario {
     return gameScores.get(gameKey(game)) ?? 0;
   };
 
+  const { min: minPair } = findMinMax(numberOfGamesByPair, { max: 0 });
   const pairsScoring = (double: Double): number => {
     let output = 0;
     for (const pair of double.players) {
       const key = pairKey(pair);
-      output += pairScoresForPrevious.get(key) ?? 0;
+      const gamesPlayed = numberOfGamesByPair.get(key) ?? 0;
 
-      const count = numberOfGamesByPair.get(key) ?? 0;
-      // prefer playing 3 games in a row
-      output += (count % 3) * 100 - Math.floor(count / 3) * 200;
+      const shift = minPair + 2;
+
+      if (gamesPlayed < shift) {
+        output += pairScoresForPrevious.get(key) ?? 0;
+      } else if (gamesPlayed >= shift) {
+        output -= 100;
+      }
     }
     return output;
   };
@@ -377,7 +386,13 @@ export function computeNextScenario(context: Context): Scenario {
   const { max: maxBreaks } = findMinMax(numberOfBreaksByPlayer, { max: 0 });
   const breakScoring = (player: string): number => {
     const forPlayer = numberOfBreaksByPlayer.get(player) ?? 0;
-    return (maxBreaks - forPlayer) * 3000;
+    const fromCount = (maxBreaks - forPlayer) * 3000;
+
+    const fromDistance = breakDistanceByPlayer.has(player)
+      ? (Math.max(6, breakDistanceByPlayer.get(player)!) - 3) * 50
+      : 0;
+
+    return fromCount + fromDistance;
   };
 
   const { max: maxSinglesPlayed } = findMinMax(numberOfSinglesByPlayer, {
@@ -404,9 +419,6 @@ export function computeNextScenario(context: Context): Scenario {
             score += singleScoring(player);
           }
         } else if (game.type === "double") {
-          // for (const player of game.players.flat()) {
-          //   score += doubleScoring(player);
-          // }
           score += pairsScoring(game);
         }
       }
