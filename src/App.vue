@@ -1,8 +1,7 @@
 <script lang="ts">
 import AddPlayer from "@/components/AddPlayer.vue";
 import GetScenario from "@/components/GetScenario.vue";
-import Reset from "@/components/Reset.vue";
-import { RouterView } from "vue-router";
+import StatsControls from "@/components/StatsControls.vue";
 import { useTheme } from "vuetify";
 
 export default {
@@ -16,7 +15,7 @@ export default {
   components: {
     AddPlayer,
     GetScenario,
-    Reset,
+    StatsControls,
   },
 
   methods: {
@@ -36,13 +35,10 @@ export default {
 
       <AddPlayer v-if="$route.name === 'players'"></AddPlayer>
       <GetScenario v-if="$route.name === 'playing'"></GetScenario>
-      <Reset v-if="$route.name === 'stats'"></Reset>
+      <StatsControls v-if="$route.name === 'stats'"></StatsControls>
     </v-app-bar>
 
-    <v-main
-      class="d-flex align-center justify-center"
-      style="min-height: 300px"
-    >
+    <v-main class="d-flex align-center justify-center" style="min-height: 300px">
       <router-view></router-view>
     </v-main>
 
