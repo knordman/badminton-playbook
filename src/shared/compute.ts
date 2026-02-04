@@ -152,8 +152,9 @@ export function computeAllScenarios(
   const scenarios: Scenario[] = [];
 
   if (games.break > 0) {
-    for (let i = 0; i < numberOfPlayers; i += games.break) {
-      const pausedPlayers = new Set(participants.slice(i, i + games.break));
+    const breakCombinations = generateCombinationsOfSize(participants, games.break);
+    for (const pausedPlayersList of breakCombinations) {
+      const pausedPlayers = new Set(pausedPlayersList);
       const availableSingles = allSingles.filter((single) => {
         for (const singlePlayer of single) {
           if (pausedPlayers.has(singlePlayer)) {

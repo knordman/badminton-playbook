@@ -294,6 +294,23 @@ describe("Scenarios", () => {
       }
     });
 
+    it("pauses 3 players for 7 players on 1 field", () => {
+      const players = ["A", "B", "C", "D", "E", "F", "G"];
+      const allScenarios = computeAllScenarios(players, 1);
+
+      expect(allScenarios.length).toBeGreaterThan(0);
+      for (const scenario of allScenarios) {
+        const breakGame = scenario.find((g) => g.type === "break");
+        expect(breakGame).toBeDefined();
+        expect(breakGame!.players.length).toBe(3);
+
+        // Should have exactly 1 double game (4 players) + 1 break (3 players) = 7 players
+        const doubleGame = scenario.find((g) => g.type === "double");
+        expect(doubleGame).toBeDefined();
+        expect(scenario.length).toBe(2); // 1 break + 1 double
+      }
+    });
+
     it("avoids repeating same game on single field", () => {
       const players = ["A", "B", "C", "D"];
       const allScenarios = computeAllScenarios(players, 1);
