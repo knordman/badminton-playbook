@@ -54,11 +54,7 @@ export default {
 <template>
   <div class="flex-column">
     <div v-if="playing && playing.length > 0">
-      <Break
-        v-if="breaks.length > 0"
-        class="ma-2"
-        :persons="breaks.map((b) => b.players).flat()"
-      />
+      <Break v-if="breaks.length > 0" class="ma-2" :persons="breaks.map((b) => b.players).flat()" />
       <Game v-for="game in singles" class="ma-2" :game="game" />
       <Game v-for="game in doubles" class="ma-2" :game="game" />
     </div>
@@ -67,7 +63,7 @@ export default {
       Press start to generate game plan
     </div>
     <div class="mx-4 text-center" v-else>
-      Add between 2 and 10 players to generate game plan. There
+      Add between 2 and 11 players to generate game plan. There
       {{
         numberOfPlayers === 1
           ? "is currently 1 player"

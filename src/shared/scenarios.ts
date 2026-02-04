@@ -72,7 +72,7 @@ export function gameIsFinished(result: Result): boolean {
 }
 
 export function isPlayable(numberOfPlayers: number): boolean {
-  return numberOfPlayers >= 2 && numberOfPlayers <= 10;
+  return numberOfPlayers >= 2 && numberOfPlayers <= 11;
 }
 
 export function getActiveContext(

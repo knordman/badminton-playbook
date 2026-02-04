@@ -109,6 +109,8 @@ function getConcurrentGames(
         return { single: 0, double: 1, break: 5 };
       case 10:
         return { single: 0, double: 1, break: 6 };
+      case 11:
+        return { single: 0, double: 1, break: 7 };
     }
   } else {
     switch (numberOfPlayers) {
@@ -130,6 +132,8 @@ function getConcurrentGames(
         return { single: 0, double: 2, break: 1 };
       case 10:
         return { single: 0, double: 2, break: 2 };
+      case 11:
+        return { single: 0, double: 2, break: 3 };
     }
   }
   throw new Error(`unhandled number of players: ${numberOfPlayers}`);
