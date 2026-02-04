@@ -14,7 +14,7 @@ function generateCombinationsOfSize<T>(items: T[], size: number) {
       const nextItem = remainingItems[i];
       const nextRemainingItems = remainingItems.slice(i + 1);
       combos.push(
-        ...generateCombinations([...current, nextItem], nextRemainingItems)
+        ...generateCombinations([...current, nextItem], nextRemainingItems),
       );
     }
 
@@ -27,16 +27,16 @@ function generateCombinationsOfSize<T>(items: T[], size: number) {
 function* generateScenarios(
   games: ConcurrentGames,
   singles: Single["players"][],
-  doubles: Double["players"][]
+  doubles: Double["players"][],
 ) {
   if (games.single === 0) {
     const concurrentDoubles = generateCombinationsOfSize(
       doubles,
-      games.double
+      games.double,
     ).filter(
       (concurrent) =>
         concurrent.length === 1 ||
-        new Set(concurrent.flat(2)).size === concurrent.length * 4
+        new Set(concurrent.flat(2)).size === concurrent.length * 4,
     );
     for (const doubles of concurrentDoubles) {
       yield { singles: [], doubles };
@@ -44,11 +44,11 @@ function* generateScenarios(
   } else {
     const concurrentSingles = generateCombinationsOfSize(
       singles,
-      games.single
+      games.single,
     ).filter(
       (concurrent) =>
         concurrent.length === 1 ||
-        new Set(concurrent.flat()).size === concurrent.length * 2
+        new Set(concurrent.flat()).size === concurrent.length * 2,
     );
 
     for (const singles of concurrentSingles) {
@@ -68,11 +68,11 @@ function* generateScenarios(
 
         const concurrentDoubles = generateCombinationsOfSize(
           possibleDoubles,
-          games.double
+          games.double,
         ).filter(
           (concurrent) =>
             concurrent.length === 1 ||
-            new Set(concurrent.flat(2)).size === concurrent.length * 4
+            new Set(concurrent.flat(2)).size === concurrent.length * 4,
         );
 
         for (const doubles of concurrentDoubles) {
@@ -87,7 +87,7 @@ type ConcurrentGames = { single: number; double: number; break: number };
 
 function getConcurrentGames(
   numberOfPlayers: number,
-  numberOfFields: 1 | 2
+  numberOfFields: 1 | 2,
 ): ConcurrentGames {
   if (numberOfFields === 1) {
     switch (numberOfPlayers) {
@@ -107,6 +107,8 @@ function getConcurrentGames(
         return { single: 0, double: 1, break: 4 };
       case 9:
         return { single: 0, double: 1, break: 5 };
+      case 10:
+        return { single: 0, double: 1, break: 6 };
     }
   } else {
     switch (numberOfPlayers) {
@@ -126,6 +128,8 @@ function getConcurrentGames(
         return { single: 0, double: 2, break: 0 };
       case 9:
         return { single: 0, double: 2, break: 1 };
+      case 10:
+        return { single: 0, double: 2, break: 2 };
     }
   }
   throw new Error(`unhandled number of players: ${numberOfPlayers}`);
@@ -133,7 +137,7 @@ function getConcurrentGames(
 
 export function computeAllScenarios(
   participants: string[],
-  numberOfFields: 1 | 2
+  numberOfFields: 1 | 2,
 ): Scenario[] {
   const numberOfPlayers = participants.length;
   const pairs = <[string, string][]>generateCombinationsOfSize(participants, 2);
@@ -143,7 +147,7 @@ export function computeAllScenarios(
     generateCombinationsOfSize(pairs, 2).filter(
       (concurrent) =>
         concurrent.length === 1 ||
-        new Set(concurrent.flat()).size === concurrent.length * 2
+        new Set(concurrent.flat()).size === concurrent.length * 2,
     )
   );
 
@@ -152,7 +156,10 @@ export function computeAllScenarios(
   const scenarios: Scenario[] = [];
 
   if (games.break > 0) {
-    const breakCombinations = generateCombinationsOfSize(participants, games.break);
+    const breakCombinations = generateCombinationsOfSize(
+      participants,
+      games.break,
+    );
     for (const pausedPlayersList of breakCombinations) {
       const pausedPlayers = new Set(pausedPlayersList);
       const availableSingles = allSingles.filter((single) => {
@@ -176,7 +183,7 @@ export function computeAllScenarios(
       for (const scenario of generateScenarios(
         games,
         availableSingles,
-        availableDoubles
+        availableDoubles,
       )) {
         const parts: Game[] = [];
         if (pausedPlayers.size > 0) {
@@ -264,7 +271,7 @@ export function projectProfile<Item extends string | number>(spec: {
 
 export function findMinMax(
   map: Map<string, number>,
-  defaults?: { max?: number; min?: number }
+  defaults?: { max?: number; min?: number },
 ): {
   min: number;
   max: number;
@@ -343,7 +350,7 @@ export function computeNextScenario(context: Context): Scenario {
       // avoid playing same game, the most for the most current ones
       gameScores.set(
         gameKey(result),
-        ((index + 1) / context.history.length) * -(context.history.length * 55)
+        ((index + 1) / context.history.length) * -(context.history.length * 55),
       );
 
       if (result.type === "double") {
@@ -433,7 +440,7 @@ export function computeNextScenario(context: Context): Scenario {
 
   console.debug(`scored scenario groups: ${scored.size}`);
   console.debug(
-    `max score: ${sortedScores[0]} with ${bestScenarios.size} scenarios`
+    `max score: ${sortedScores[0]} with ${bestScenarios.size} scenarios`,
   );
 
   const chosen = [...bestScenarios][

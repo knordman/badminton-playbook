@@ -48,7 +48,7 @@ export async function computeNextScenarioWithWorker(): Promise<WorkerResponse> {
       "message",
       (event: MessageEvent<WorkerResponse>) => {
         resolve(event.data);
-      }
+      },
     );
 
     worker.postMessage({} satisfies WorkerRequest);
@@ -72,12 +72,12 @@ export function gameIsFinished(result: Result): boolean {
 }
 
 export function isPlayable(numberOfPlayers: number): boolean {
-  return numberOfPlayers >= 2 && numberOfPlayers <= 9;
+  return numberOfPlayers >= 2 && numberOfPlayers <= 10;
 }
 
 export function getActiveContext(
   players: string[],
-  numberOfFields: number
+  numberOfFields: number,
 ): PlayersContext["value"] | undefined {
   return isPlayable(players.length)
     ? `${players.sort().join("-")}:${numberOfFields}`

@@ -67,7 +67,7 @@ export default {
       Press start to generate game plan
     </div>
     <div class="mx-4 text-center" v-else>
-      Add between 2 and 9 players to generate game plan. There
+      Add between 2 and 10 players to generate game plan. There
       {{
         numberOfPlayers === 1
           ? "is currently 1 player"
