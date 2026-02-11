@@ -76,6 +76,22 @@ export class Database extends Dexie {
       context: "id",
       settings: "id",
     });
+    this.version(9)
+      .stores({
+        players: "name",
+        playing: "id++",
+        results: "id,[type+finished]",
+        context: "id",
+        settings: "id",
+      })
+      .upgrade(async (tx) => {
+        await tx
+          .table("results")
+          .toCollection()
+          .modify((result) => {
+            result.round = 0;
+          });
+      });
   }
 }
 

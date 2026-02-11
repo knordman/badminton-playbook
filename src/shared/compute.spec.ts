@@ -74,12 +74,14 @@ describe("Scenarios", () => {
             id: 0,
             type: "break",
             finished: 1,
+            round: 1,
             players: ["C"],
           },
           {
             id: 1,
             type: "single",
             finished: 1,
+            round: 1,
             players: ["A", "B"],
             points: [0, 0],
           },
@@ -87,12 +89,14 @@ describe("Scenarios", () => {
             id: 2,
             type: "break",
             finished: 1,
+            round: 2,
             players: ["A"],
           },
           {
             id: 3,
             type: "single",
             finished: 1,
+            round: 2,
             players: ["C", "B"],
             points: [0, 0],
           },
@@ -100,12 +104,14 @@ describe("Scenarios", () => {
             id: 4,
             type: "break",
             finished: 1,
+            round: 3,
             players: ["B"],
           },
           {
             id: 5,
             type: "single",
             finished: 1,
+            round: 3,
             players: ["C", "A"],
             points: [0, 0],
           },
@@ -130,6 +136,7 @@ describe("Scenarios", () => {
           {
             id: 255,
             finished: 1,
+            round: 1,
             type: "double",
             players: [
               ["A", "B"],
@@ -140,6 +147,7 @@ describe("Scenarios", () => {
           {
             id: 256,
             finished: 1,
+            round: 1,
             type: "double",
             players: [
               ["E", "F"],
@@ -151,6 +159,7 @@ describe("Scenarios", () => {
           {
             id: 257,
             finished: 1,
+            round: 2,
             type: "double",
             players: [
               ["A", "B"],
@@ -161,6 +170,7 @@ describe("Scenarios", () => {
           {
             id: 258,
             finished: 1,
+            round: 2,
             type: "double",
             players: [
               ["C", "D"],
@@ -172,6 +182,7 @@ describe("Scenarios", () => {
           {
             id: 259,
             finished: 1,
+            round: 3,
             type: "double",
             players: [
               ["A", "B"],
@@ -182,6 +193,7 @@ describe("Scenarios", () => {
           {
             id: 260,
             finished: 1,
+            round: 3,
             type: "double",
             players: [
               ["C", "D"],
@@ -209,6 +221,7 @@ describe("Scenarios", () => {
       let gameIdsForPreviousScenario: Set<number> | undefined;
 
       for (let i = 0; i < total; i++) {
+        const round = i + 1;
         const next = computeNextScenario({
           allScenarios,
           history,
@@ -225,6 +238,7 @@ describe("Scenarios", () => {
               type: "break",
               finished: 1,
               id: idGame,
+              round,
               players: game.players,
             });
           } else if (game.type === "single") {
@@ -234,6 +248,7 @@ describe("Scenarios", () => {
               type: "single",
               finished: 1,
               id: idGame,
+              round,
               players: game.players,
               points: [11, 0],
             });
@@ -244,6 +259,7 @@ describe("Scenarios", () => {
               type: "double",
               finished: 1,
               id: idGame,
+              round,
               players: game.players,
               points: [5, 11],
             });
@@ -321,6 +337,7 @@ describe("Scenarios", () => {
           {
             id: 44,
             finished: 1,
+            round: 1,
             type: "double",
             players: [
               ["A", "D"],
@@ -331,6 +348,7 @@ describe("Scenarios", () => {
           {
             id: 45,
             finished: 1,
+            round: 2,
             type: "double",
             players: [
               ["A", "B"],
@@ -341,6 +359,7 @@ describe("Scenarios", () => {
           {
             id: 46,
             finished: 1,
+            round: 3,
             type: "double",
             players: [
               ["A", "C"],
@@ -368,11 +387,13 @@ describe("Scenarios", () => {
           id: 14,
           type: "break",
           finished: 1,
+          round: 1,
           players: ["C"],
         },
         {
           id: 15,
           finished: 1,
+          round: 1,
           type: "single",
           players: ["B", "D"],
           points: [11, 4],
@@ -380,6 +401,7 @@ describe("Scenarios", () => {
         {
           id: 16,
           finished: 1,
+          round: 1,
           type: "double",
           players: [
             ["A", "E"],
@@ -391,11 +413,13 @@ describe("Scenarios", () => {
           id: 17,
           type: "break",
           finished: 1,
+          round: 2,
           players: ["E"],
         },
         {
           id: 18,
           finished: 1,
+          round: 2,
           type: "single",
           players: ["A", "C"],
           points: [11, 5],
@@ -403,6 +427,7 @@ describe("Scenarios", () => {
         {
           id: 19,
           finished: 1,
+          round: 2,
           type: "double",
           players: [
             ["B", "D"],
@@ -414,11 +439,13 @@ describe("Scenarios", () => {
           id: 20,
           type: "break",
           finished: 1,
+          round: 3,
           players: ["F"],
         },
         {
           id: 21,
           finished: 1,
+          round: 3,
           type: "single",
           players: ["E", "G"],
           points: [11, 8],
@@ -426,6 +453,7 @@ describe("Scenarios", () => {
         {
           id: 22,
           finished: 1,
+          round: 3,
           type: "double",
           players: [
             ["A", "C"],
@@ -437,11 +465,13 @@ describe("Scenarios", () => {
           id: 23,
           type: "break",
           finished: 1,
+          round: 4,
           players: ["G"],
         },
         {
           id: 24,
           finished: 1,
+          round: 4,
           type: "single",
           players: ["F", "C"],
           points: [11, 6],
@@ -449,6 +479,7 @@ describe("Scenarios", () => {
         {
           id: 25,
           finished: 1,
+          round: 4,
           type: "double",
           players: [
             ["A", "E"],
@@ -460,11 +491,13 @@ describe("Scenarios", () => {
           id: 26,
           type: "break",
           finished: 1,
+          round: 5,
           players: ["D"],
         },
         {
           id: 27,
           finished: 1,
+          round: 5,
           type: "single",
           players: ["E", "B"],
           points: [11, 8],
@@ -472,6 +505,7 @@ describe("Scenarios", () => {
         {
           id: 28,
           finished: 1,
+          round: 5,
           type: "double",
           players: [
             ["A", "C"],
@@ -483,11 +517,13 @@ describe("Scenarios", () => {
           id: 29,
           type: "break",
           finished: 1,
+          round: 6,
           players: ["B"],
         },
         {
           id: 30,
           finished: 1,
+          round: 6,
           type: "single",
           players: ["F", "D"],
           points: [11, 6],
@@ -495,6 +531,7 @@ describe("Scenarios", () => {
         {
           id: 31,
           finished: 1,
+          round: 6,
           type: "double",
           players: [
             ["A", "C"],
@@ -506,11 +543,13 @@ describe("Scenarios", () => {
           id: 32,
           type: "break",
           finished: 1,
+          round: 7,
           players: ["A"],
         },
         {
           id: 33,
           finished: 1,
+          round: 7,
           type: "single",
           players: ["G", "F"],
           points: [5, 11],
@@ -518,6 +557,7 @@ describe("Scenarios", () => {
         {
           id: 34,
           finished: 1,
+          round: 7,
           type: "double",
           players: [
             ["E", "D"],
@@ -529,11 +569,13 @@ describe("Scenarios", () => {
           id: 35,
           type: "break",
           finished: 1,
+          round: 8,
           players: ["F"],
         },
         {
           id: 36,
           finished: 1,
+          round: 8,
           type: "single",
           players: ["A", "D"],
           points: [11, 3],
@@ -541,6 +583,7 @@ describe("Scenarios", () => {
         {
           id: 37,
           finished: 1,
+          round: 8,
           type: "double",
           players: [
             ["E", "G"],
@@ -552,11 +595,13 @@ describe("Scenarios", () => {
           id: 38,
           type: "break",
           finished: 1,
+          round: 9,
           players: ["B"],
         },
         {
           id: 39,
           finished: 1,
+          round: 9,
           type: "single",
           players: ["A", "C"],
           points: [11, 6],
@@ -564,6 +609,7 @@ describe("Scenarios", () => {
         {
           id: 40,
           finished: 1,
+          round: 9,
           type: "double",
           players: [
             ["E", "G"],
@@ -575,11 +621,13 @@ describe("Scenarios", () => {
           id: 41,
           type: "break",
           finished: 1,
+          round: 10,
           players: ["A"],
         },
         {
           id: 42,
           finished: 1,
+          round: 10,
           type: "single",
           players: ["E", "G"],
           points: [11, 5],
@@ -587,6 +635,7 @@ describe("Scenarios", () => {
         {
           id: 43,
           finished: 1,
+          round: 10,
           type: "double",
           players: [
             ["B", "C"],
@@ -598,11 +647,13 @@ describe("Scenarios", () => {
           id: 44,
           type: "break",
           finished: 1,
+          round: 11,
           players: ["C"],
         },
         {
           id: 45,
           finished: 1,
+          round: 11,
           type: "single",
           players: ["B", "D"],
           points: [11, 7],
@@ -610,6 +661,7 @@ describe("Scenarios", () => {
         {
           id: 46,
           finished: 1,
+          round: 11,
           type: "double",
           players: [
             ["A", "E"],
@@ -621,11 +673,13 @@ describe("Scenarios", () => {
           id: 47,
           type: "break",
           finished: 1,
+          round: 12,
           players: ["G"],
         },
         {
           id: 48,
           finished: 1,
+          round: 12,
           type: "single",
           players: ["F", "C"],
           points: [11, 8],
@@ -633,6 +687,7 @@ describe("Scenarios", () => {
         {
           id: 49,
           finished: 1,
+          round: 12,
           type: "double",
           players: [
             ["A", "B"],
@@ -644,11 +699,13 @@ describe("Scenarios", () => {
           id: 50,
           type: "break",
           finished: 1,
+          round: 13,
           players: ["D"],
         },
         {
           id: 51,
           finished: 1,
+          round: 13,
           type: "single",
           players: ["E", "B"],
           points: [11, 5],
@@ -656,6 +713,7 @@ describe("Scenarios", () => {
         {
           id: 52,
           finished: 1,
+          round: 13,
           type: "double",
           players: [
             ["A", "G"],
@@ -667,11 +725,13 @@ describe("Scenarios", () => {
           id: 53,
           type: "break",
           finished: 1,
+          round: 14,
           players: ["E"],
         },
         {
           id: 54,
           finished: 1,
+          round: 14,
           type: "single",
           players: ["A", "G"],
           points: [5, 11],
@@ -679,6 +739,7 @@ describe("Scenarios", () => {
         {
           id: 55,
           finished: 1,
+          round: 14,
           type: "double",
           players: [
             ["B", "F"],
@@ -696,6 +757,76 @@ describe("Scenarios", () => {
 
       expect(next).toBeDefined();
       expect(next[0].players).not.to.deep.equal(["E"]);
+    });
+
+    it("avoids consecutive breaks for 7 players on 1 field", () => {
+      const players = ["A", "B", "C", "D", "E", "F", "G"];
+      const allScenarios = computeAllScenarios(players, 1);
+
+      const history: FinishedGame[] = [];
+
+      let id = 0;
+      const total = 14;
+      let gameIdsForPreviousScenario: Set<number> | undefined;
+
+      for (let i = 0; i < total; i++) {
+        const round = i + 1;
+        const next = computeNextScenario({
+          allScenarios,
+          history,
+          gameIdsForPreviousScenario:
+            gameIdsForPreviousScenario ?? new Set<number>(),
+        });
+
+        gameIdsForPreviousScenario = new Set<number>();
+        for (const game of next) {
+          if (game.type === "break") {
+            const idGame = id++;
+            gameIdsForPreviousScenario.add(idGame);
+            history.push({
+              type: "break",
+              finished: 1,
+              id: idGame,
+              round,
+              players: game.players,
+            });
+          } else {
+            const idGame = id++;
+            gameIdsForPreviousScenario.add(idGame);
+            history.push({
+              type: game.type,
+              finished: 1,
+              id: idGame,
+              round,
+              players: game.players,
+              points: [11, 5],
+            } as FinishedGame);
+          }
+        }
+      }
+
+      // Check that no player appears on break in two consecutive rounds
+      const breakPlayersByRound = new Map<number, Set<string>>();
+      for (const game of history) {
+        if (game.type === "break") {
+          const existing = breakPlayersByRound.get(game.round) ?? new Set();
+          for (const player of game.players) {
+            existing.add(player);
+          }
+          breakPlayersByRound.set(game.round, existing);
+        }
+      }
+
+      for (let r = 2; r <= total; r++) {
+        const prev = breakPlayersByRound.get(r - 1) ?? new Set();
+        const curr = breakPlayersByRound.get(r) ?? new Set();
+        for (const player of curr) {
+          expect(
+            prev.has(player),
+            `Player ${player} was on break in both rounds ${r - 1} and ${r}`,
+          ).toBe(false);
+        }
+      }
     });
   });
 });

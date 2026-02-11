@@ -334,13 +334,24 @@ export function computeNextScenario(context: Context): Scenario {
   const numberOfDoublesByPlayer = new Map<string, number>();
   const numberOfGamesByPair = new Map<string, number>();
   const playedRounds = context.history.length;
-  const breakDistanceByPlayer = new Map<string, number>();
+  const consecutiveBreakStreakByPlayer = new Map<string, number>();
+  const breakPlayersByRound = new Map<number, Set<string>>();
+
+  const latestRound =
+    playedRounds > 0 ? context.history[context.history.length - 1].round : 0;
 
   for (const [index, result] of context.history.entries()) {
     if (result.type === "break") {
+      let breakers: Set<string>;
+      if (breakPlayersByRound.has(result.round)) {
+        breakers = breakPlayersByRound.get(result.round)!;
+      } else {
+        breakers = new Set();
+        breakPlayersByRound.set(result.round, breakers);
+      }
       for (const player of result.players) {
         addOne(numberOfBreaksByPlayer, player);
-        breakDistanceByPlayer.set(player, playedRounds - index);
+        breakers.add(player);
       }
     } else {
       const bucket =
@@ -373,6 +384,20 @@ export function computeNextScenario(context: Context): Scenario {
     }
   }
 
+  const latestBreakPlayers = breakPlayersByRound.get(latestRound) ?? new Set();
+
+  for (const player of latestBreakPlayers) {
+    let streak = 1;
+    for (let r = latestRound - 1; r >= 0; r--) {
+      if (breakPlayersByRound.get(r)?.has(player)) {
+        streak++;
+      } else {
+        break;
+      }
+    }
+    consecutiveBreakStreakByPlayer.set(player, streak);
+  }
+
   const gameScoring = (game: Single | Double): number => {
     return gameScores.get(gameKey(game)) ?? 0;
   };
@@ -399,12 +424,9 @@ export function computeNextScenario(context: Context): Scenario {
   const breakScoring = (player: string): number => {
     const forPlayer = numberOfBreaksByPlayer.get(player) ?? 0;
     const fromCount = (maxBreaks - forPlayer) * 3000;
+    const fromStreak = (consecutiveBreakStreakByPlayer.get(player) ?? 0) * 1500;
 
-    const fromDistance = breakDistanceByPlayer.has(player)
-      ? (Math.max(6, breakDistanceByPlayer.get(player)!) - 3) * 50
-      : 0;
-
-    return fromCount + fromDistance;
+    return fromCount - fromStreak;
   };
 
   const { max: maxSinglesPlayed } = findMinMax(numberOfSinglesByPlayer, {

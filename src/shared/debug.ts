@@ -155,6 +155,7 @@ export function generateHistory(spec: {
         output.push({
           finished: 1,
           id,
+          round,
           players: game.players,
           type: game.type,
         });
@@ -164,6 +165,7 @@ export function generateHistory(spec: {
         output.push({
           finished: 1,
           id,
+          round,
           players: game.players,
           points: [1, 1],
           type: game.type,
@@ -174,6 +176,7 @@ export function generateHistory(spec: {
         output.push({
           finished: 1,
           id,
+          round,
           players: game.players,
           points: [1, 1],
           type: game.type,

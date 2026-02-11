@@ -56,6 +56,11 @@ self.addEventListener("message", async (event: MessageEvent<WorkerRequest>) => {
         const writeResults: FinishedGame[] = [];
         const previousGames = new Map(playing.map((p) => [p.id!, p]));
 
+        const currentRound =
+          storedResults.length > 0
+            ? Math.max(...storedResults.map((r) => (r as { round?: number }).round ?? 0)) + 1
+            : 1;
+
         for (const result of storedResults) {
           if (result.finished) {
             finished.push(result);
@@ -71,6 +76,7 @@ self.addEventListener("message", async (event: MessageEvent<WorkerRequest>) => {
                 writeResults.push({
                   id: result.id,
                   finished: 1,
+                  round: currentRound,
                   ...typedGamePlayers,
                   points: [
                     findPointsForPlayer({
@@ -96,6 +102,7 @@ self.addEventListener("message", async (event: MessageEvent<WorkerRequest>) => {
               id: game.id!,
               type: "break",
               finished: 1,
+              round: currentRound,
               players: game.players,
             });
           }

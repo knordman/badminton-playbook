@@ -15,6 +15,7 @@ type Points = { points: [number, number] };
 type GameResult<T extends { Finished: 0 | 1 }> = {
   id: number;
   finished: T["Finished"];
+  round: number;
 };
 
 export type FinishedGameWithPoints = GameResult<{ Finished: 1 }> &
