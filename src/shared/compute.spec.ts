@@ -67,7 +67,7 @@ describe("Scenarios", () => {
       const players = ["A", "B", "C"];
       const allScenarios = computeAllScenarios(players, 2);
 
-      const next = computeNextScenario({
+      const { chosen } = computeNextScenario({
         allScenarios,
         history: [
           {
@@ -119,8 +119,8 @@ describe("Scenarios", () => {
         gameIdsForPreviousScenario: new Set([4, 5]),
       });
 
-      expect(next).toBeDefined();
-      expect(next.find((s) => s.type === "break")?.players).to.deep.equal([
+      expect(chosen).toBeDefined();
+      expect(chosen.find((s) => s.type === "break")?.players).to.deep.equal([
         "C",
       ]);
     });
@@ -129,7 +129,7 @@ describe("Scenarios", () => {
       const players = ["A", "B", "C", "D", "E", "F", "G", "H"];
       const allScenarios = computeAllScenarios(players, 2);
 
-      const next = computeNextScenario({
+      const { chosen } = computeNextScenario({
         allScenarios,
         history: [
           // 1
@@ -206,8 +206,8 @@ describe("Scenarios", () => {
         gameIdsForPreviousScenario: new Set([260, 259]),
       });
 
-      // console.log(JSON.stringify(next, undefined, 4));
-      expect(next).toBeDefined();
+      // console.log(JSON.stringify(chosen, undefined, 4));
+      expect(chosen).toBeDefined();
     });
 
     it("balances games", () => {
@@ -222,7 +222,7 @@ describe("Scenarios", () => {
 
       for (let i = 0; i < total; i++) {
         const round = i + 1;
-        const next = computeNextScenario({
+        const { chosen } = computeNextScenario({
           allScenarios,
           history,
           gameIdsForPreviousScenario:
@@ -230,7 +230,7 @@ describe("Scenarios", () => {
         });
 
         gameIdsForPreviousScenario = new Set<number>();
-        for (const game of next) {
+        for (const game of chosen) {
           if (game.type === "break") {
             const idGame = id++;
             gameIdsForPreviousScenario.add(idGame);
@@ -331,7 +331,7 @@ describe("Scenarios", () => {
       const players = ["A", "B", "C", "D"];
       const allScenarios = computeAllScenarios(players, 1);
 
-      const next = computeNextScenario({
+      const { chosen } = computeNextScenario({
         allScenarios,
         history: [
           {
@@ -371,9 +371,9 @@ describe("Scenarios", () => {
         gameIdsForPreviousScenario: new Set([46]),
       });
 
-      // console.log(JSON.stringify(next, undefined, 4));
-      expect(next).toBeDefined();
-      expect(next[0].players).not.to.deep.equal([
+      // console.log(JSON.stringify(chosen, undefined, 4));
+      expect(chosen).toBeDefined();
+      expect(chosen[0].players).not.to.deep.equal([
         ["A", "C"],
         ["B", "D"],
       ]);
@@ -749,14 +749,14 @@ describe("Scenarios", () => {
         },
       ] satisfies Context["history"];
 
-      const next = computeNextScenario({
+      const { chosen } = computeNextScenario({
         allScenarios,
         history,
         gameIdsForPreviousScenario: new Set([53, 54, 55]),
       });
 
-      expect(next).toBeDefined();
-      expect(next[0].players).not.to.deep.equal(["E"]);
+      expect(chosen).toBeDefined();
+      expect(chosen[0].players).not.to.deep.equal(["E"]);
     });
 
     it("avoids consecutive breaks for 7 players on 1 field", () => {
@@ -771,7 +771,7 @@ describe("Scenarios", () => {
 
       for (let i = 0; i < total; i++) {
         const round = i + 1;
-        const next = computeNextScenario({
+        const { chosen } = computeNextScenario({
           allScenarios,
           history,
           gameIdsForPreviousScenario:
@@ -779,7 +779,7 @@ describe("Scenarios", () => {
         });
 
         gameIdsForPreviousScenario = new Set<number>();
-        for (const game of next) {
+        for (const game of chosen) {
           if (game.type === "break") {
             const idGame = id++;
             gameIdsForPreviousScenario.add(idGame);

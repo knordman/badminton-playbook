@@ -33,9 +33,9 @@ export default {
     <v-app-bar class="d-flex">
       <v-btn @click="toggleTheme" icon="mdi-brightness-4"></v-btn>
 
-      <AddPlayer v-if="$route.name === 'players'"></AddPlayer>
-      <GetScenario v-if="$route.name === 'playing'"></GetScenario>
-      <StatsControls v-if="$route.name === 'stats'"></StatsControls>
+      <AddPlayer class="flex-grow-1" v-if="$route.name === 'players'"></AddPlayer>
+      <GetScenario class="flex-grow-1" v-if="$route.name === 'playing'"></GetScenario>
+      <StatsControls class="flex-grow-1" v-if="$route.name === 'stats'"></StatsControls>
     </v-app-bar>
 
     <v-main class="d-flex align-center justify-center" style="min-height: 300px">
@@ -60,5 +60,3 @@ export default {
     </v-bottom-navigation>
   </v-app>
 </template>
-
-<style></style>

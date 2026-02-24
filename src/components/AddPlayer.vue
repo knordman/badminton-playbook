@@ -37,7 +37,7 @@ export default {
 <template>
   <v-dialog width="500">
     <template v-slot:activator="{ props }">
-      <v-btn v-bind="props" class="ml-auto" variant="elevated"
+      <v-btn v-bind="props" class="ml-auto mr-2" variant="elevated"
         >Add player</v-btn
       >
     </template>

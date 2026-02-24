@@ -140,7 +140,7 @@ export function generateHistory(spec: {
   let previousGames = new Set<number>();
 
   for (let round = 1; round <= spec.rounds; round++) {
-    const next = computeNextScenario({
+    const { chosen: next } = computeNextScenario({
       allScenarios,
       gameIdsForPreviousScenario: previousGames,
       history: output,

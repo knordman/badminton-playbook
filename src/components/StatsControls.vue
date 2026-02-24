@@ -55,7 +55,7 @@ export default {
   <v-btn class="ml-auto mr-2" variant="elevated" @click="downloadCsv">Download</v-btn>
   <v-dialog width="500">
     <template v-slot:activator="{ props }">
-      <v-btn v-bind="props" class="ml-auto" variant="elevated">Reset</v-btn>
+      <v-btn v-bind="props" class="ml-auto mr-2" variant="elevated">Reset</v-btn>
     </template>
 
     <template v-slot:default="{ isActive }">

@@ -39,26 +39,51 @@ export type Result = FinishedGame | OngoingGame;
 
 export type Scenario = Game[];
 
-export async function computeNextScenarioWithWorker(): Promise<WorkerResponse> {
-  const worker = new Worker(new URL("./worker.ts", import.meta.url), {
-    type: "module",
-  });
+export class ScenarioWorker {
+  private worker: Worker | null = null;
 
-  const response = await new Promise<WorkerResponse>((resolve, reject) => {
-    worker.addEventListener(
-      "message",
-      (event: MessageEvent<WorkerResponse>) => {
-        resolve(event.data);
-      },
-    );
+  private ensureWorker(): Worker {
+    if (!this.worker) {
+      this.worker = new Worker(new URL("./worker.ts", import.meta.url), {
+        type: "module",
+      });
+    }
+    return this.worker;
+  }
 
-    worker.postMessage({} satisfies WorkerRequest);
-  });
+  private sendMessage<T extends WorkerResponse["type"]>(
+    request: WorkerRequest,
+    expectedType: T,
+  ): Promise<Extract<WorkerResponse, { type: T }>> {
+    const worker = this.ensureWorker();
+    return new Promise((resolve) => {
+      const handler = (event: MessageEvent<WorkerResponse>) => {
+        if (event.data.type === expectedType) {
+          worker.removeEventListener("message", handler);
+          resolve(event.data as Extract<WorkerResponse, { type: T }>);
+        }
+      };
+      worker.addEventListener("message", handler);
+      worker.postMessage(request);
+    });
+  }
 
-  worker.terminate();
+  async compute(): Promise<{ total: number }> {
+    const response = await this.sendMessage({ type: "compute" }, "computed");
+    return { total: response.total };
+  }
 
-  return response;
+  async next(): Promise<void> {
+    await this.sendMessage({ type: "next" }, "swapped");
+  }
+
+  terminate(): void {
+    this.worker?.terminate();
+    this.worker = null;
+  }
 }
+
+export const scenarioWorker = new ScenarioWorker();
 
 export function gameIsFinished(result: Result): boolean {
   if (result.finished) {

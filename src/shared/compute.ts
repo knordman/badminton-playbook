@@ -326,7 +326,10 @@ export function addOne(map: Map<string, number>, key: string) {
   map.set(key, map.has(key) ? map.get(key)! + 1 : 1);
 }
 
-export function computeNextScenario(context: Context): Scenario {
+export function computeNextScenario(context: Context): {
+  chosen: Scenario;
+  alternatives: Scenario[];
+} {
   const gameScores = new Map<string, number>();
   const pairScoresForPrevious = new Map<string, number>();
   const numberOfBreaksByPlayer = new Map<string, number>();
@@ -469,9 +472,8 @@ export function computeNextScenario(context: Context): Scenario {
     `max score: ${sortedScores[0]} with ${bestScenarios.size} scenarios`,
   );
 
-  const chosen = [...bestScenarios][
-    Math.floor(Math.random() * bestScenarios.size)
-  ];
+  const alternatives = [...bestScenarios];
+  const chosen = alternatives[Math.floor(Math.random() * alternatives.length)];
 
-  return chosen;
+  return { chosen, alternatives };
 }
