@@ -105,15 +105,8 @@ export default {
     <h3 class="text-h5 text-truncate font-weight-thin pt-3">
       {{ name }}
     </h3>
-    <v-text-field
-      v-model="points"
-      type="number"
-      variant="outlined"
-      label="Points"
-      placeHolder="0"
-      :error="pointsErrors"
-      @input="storePoints"
-    ></v-text-field>
+    <v-text-field v-model="points" type="number" variant="outlined" label="Points" placeHolder="0" :error="pointsErrors"
+      @input="storePoints"></v-text-field>
   </div>
 </template>
 
