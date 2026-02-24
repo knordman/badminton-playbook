@@ -62,6 +62,9 @@ export default {
         });
       } else {
         // resume playing
+        const { total, index } = await scenarioWorker.status();
+        this.alternativesTotal = total;
+        this.alternativesIndex = index + 1;
         await this.subscribeToResults();
       }
     }
@@ -69,7 +72,6 @@ export default {
 
   unmounted() {
     this.unsubscribeResults();
-    scenarioWorker.terminate();
   },
 
   computed: {

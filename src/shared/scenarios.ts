@@ -77,6 +77,11 @@ export class ScenarioWorker {
     await this.sendMessage({ type: "next" }, "swapped");
   }
 
+  async status(): Promise<{ total: number; index: number }> {
+    const response = await this.sendMessage({ type: "status" }, "status");
+    return { total: response.total, index: response.index };
+  }
+
   terminate(): void {
     this.worker?.terminate();
     this.worker = null;

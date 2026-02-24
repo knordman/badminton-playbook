@@ -10,10 +10,11 @@ import {
   type Single,
 } from "./scenarios";
 
-export type WorkerRequest = { type: "compute" } | { type: "next" };
+export type WorkerRequest = { type: "compute" } | { type: "next" } | { type: "status" };
 export type WorkerResponse =
   | { type: "computed"; total: number }
-  | { type: "swapped" };
+  | { type: "swapped" }
+  | { type: "status"; total: number; index: number };
 
 function findPointsForPlayer(context: {
   player: string | [string, string];
@@ -54,6 +55,11 @@ async function writeScenarioToPlaying(scenario: Scenario) {
 }
 
 self.addEventListener("message", async (event: MessageEvent<WorkerRequest>) => {
+  if (event.data.type === "status") {
+    self.postMessage({ type: "status", total: alternatives.length, index: currentIndex } satisfies WorkerResponse);
+    return;
+  }
+
   if (event.data.type === "next") {
     if (alternatives.length > 0) {
       currentIndex = (currentIndex + 1) % alternatives.length;
