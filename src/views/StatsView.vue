@@ -5,6 +5,7 @@ import type { Double, Single } from "@/shared/scenarios";
 import { from, useObservable } from "@vueuse/rxjs";
 import { liveQuery } from "dexie";
 import { ref } from "vue";
+import { statsMode } from "@/shared/statsMode";
 
 export default {
   setup() {
@@ -30,7 +31,7 @@ export default {
           minimumIntegerDigits: 1,
         })
       ),
-      mode: ref<"games" | "points">("games"),
+      mode: statsMode,
     };
   },
 
@@ -50,13 +51,6 @@ export default {
 
 <template>
   <div class="d-flex-row" v-if="rows.length > 0">
-    <v-switch
-      v-model="mode"
-      false-value="games"
-      true-value="points"
-      color="primary"
-      label="Show points"
-    ></v-switch>
     <v-table class="stats">
       <thead>
         <tr>
@@ -100,5 +94,9 @@ export default {
 <style>
 .stats {
   min-width: 380px;
+}
+
+.stats table {
+  table-layout: fixed;
 }
 </style>
