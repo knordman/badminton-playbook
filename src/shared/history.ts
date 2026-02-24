@@ -105,16 +105,16 @@ export function computeStatistics(
         if (result.type === "single") {
           bucket.singles.played++;
           bucket.singles.points.played += result.points[0] + result.points[1];
+          bucket.singles.points.won += forPlayer.points;
           if (forPlayer.won) {
             bucket.singles.won++;
-            bucket.singles.points.won += forPlayer.points;
           }
         } else {
           bucket.doubles.played++;
           bucket.doubles.points.played += result.points[0] + result.points[1];
+          bucket.doubles.points.won += forPlayer.points;
           if (forPlayer.won) {
             bucket.doubles.won++;
-            bucket.doubles.points.won += forPlayer.points;
           }
         }
       }
