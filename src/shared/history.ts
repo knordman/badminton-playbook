@@ -16,6 +16,8 @@ export type PlayerStatistics = {
   winningRatio: {
     games: number;
     points: number;
+    singles: number;
+    doubles: number;
   };
 };
 
@@ -45,6 +47,8 @@ export function computeStatistics(
     winningRatio: {
       games: 0,
       points: 0,
+      singles: 0,
+      doubles: 0,
     },
   });
 
@@ -72,8 +76,8 @@ export function computeStatistics(
         result.points[0] > result.points[1]
           ? result.players[0]
           : result.points[1] > result.points[0]
-          ? result.players[1]
-          : undefined;
+            ? result.players[1]
+            : undefined;
 
       const fromGameForPlayer = (
         player: string
@@ -123,11 +127,19 @@ export function computeStatistics(
 
   for (const player of output.values()) {
     player.played = player.singles.played + player.doubles.played;
-    player.winningRatio.games =
-      (player.singles.won + player.doubles.won) / player.played;
-    player.winningRatio.points =
-      (player.singles.points.won + player.doubles.points.won) /
-      (player.singles.points.played + player.doubles.points.played);
+    player.winningRatio.games = player.played
+      ? (player.singles.won + player.doubles.won) / player.played
+      : 0;
+    const totalPoints = player.singles.points.played + player.doubles.points.played;
+    player.winningRatio.points = totalPoints
+      ? (player.singles.points.won + player.doubles.points.won) / totalPoints
+      : 0;
+    player.winningRatio.singles = player.singles.played
+      ? ((player.singles.won / player.singles.played) + (player.singles.points.won / player.singles.points.played)) / 2
+      : 0;
+    player.winningRatio.doubles = player.doubles.played
+      ? ((player.doubles.won / player.doubles.played) + (player.doubles.points.won / player.doubles.points.played)) / 2
+      : 0;
   }
 
   return output;

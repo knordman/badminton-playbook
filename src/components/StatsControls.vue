@@ -1,10 +1,10 @@
 <script lang="ts">
 import { db, playersContextId } from "@/shared/db";
-import { statsMode } from "@/shared/statsMode";
+import { statsMode, cycleStatsMode } from "@/shared/statsMode";
 
 export default {
   setup() {
-    return { statsMode };
+    return { statsMode, cycleStatsMode };
   },
   methods: {
     async reset(dialogIsActive: { value: boolean }) {
@@ -56,8 +56,9 @@ export default {
 </script>
 
 <template>
-  <v-switch class="mt-5 ml-2" v-model="statsMode" false-value="games" true-value="points"
-    :label="statsMode === 'points' ? 'Points' : 'Games'"></v-switch>
+  <v-chip rounded="xl" label color="blue" @click="cycleStatsMode">
+    {{ statsMode }}
+  </v-chip>
   <v-btn class="ml-auto mr-2" variant="elevated" @click="downloadCsv">Download</v-btn>
   <v-dialog width="500">
     <template v-slot:activator="{ props }">
@@ -79,15 +80,3 @@ export default {
     </template>
   </v-dialog>
 </template>
-
-<style scoped>
-.v-switch :deep(.v-label) {
-  min-width: 7ch;
-}
-
-@media (max-width: 400px) {
-  .v-switch :deep(.v-label) {
-    display: none;
-  }
-}
-</style>
