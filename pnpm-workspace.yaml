@@ -2,3 +2,14 @@ packages:
     - badminton-playbook
 minimumReleaseAge: 4320 # in minutes (3 days)
 trustPolicy: no-downgrade
+# maintenance releases on older lines, published after newer majors gained
+# trusted-publisher status; flagged by publish date only
+trustPolicyExclude:
+    - vite@5.4.21
+    - semver@6.3.1
+    - undici-types@6.21.0
+# postinstall scripts pnpm 10 already skipped: esbuild only self-optimises,
+# vue-demi defaults to vue 3 without its switch
+allowBuilds:
+    esbuild: false
+    vue-demi: false
