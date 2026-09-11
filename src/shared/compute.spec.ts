@@ -1,14 +1,60 @@
 import { describe, expect, it } from "vitest";
 import {
+  addOne,
   computeAllScenarios,
   computeNextScenario,
   findMinMax,
+  pairKey,
   projectProfile,
   type Context,
 } from "./compute";
 import { consoleLogHistory } from "./debug";
 import { computeStatistics } from "./history";
 import type { FinishedGame } from "./scenarios";
+
+function playRounds(spec: {
+  players: string[];
+  numberOfFields: 1 | 2;
+  rounds: number;
+}): FinishedGame[] {
+  const allScenarios = computeAllScenarios(spec.players, spec.numberOfFields);
+  const history: FinishedGame[] = [];
+  let id = 0;
+  let gameIdsForPreviousScenario = new Set<number>();
+
+  for (let round = 1; round <= spec.rounds; round++) {
+    const { chosen } = computeNextScenario({
+      allScenarios,
+      history,
+      gameIdsForPreviousScenario,
+    });
+    gameIdsForPreviousScenario = new Set<number>();
+    for (const game of chosen) {
+      const idGame = id++;
+      gameIdsForPreviousScenario.add(idGame);
+      if (game.type === "break") {
+        history.push({
+          type: "break",
+          finished: 1,
+          id: idGame,
+          round,
+          players: game.players,
+        });
+      } else {
+        history.push({
+          type: game.type,
+          finished: 1,
+          id: idGame,
+          round,
+          players: game.players,
+          points: [11, 5],
+        } as FinishedGame);
+      }
+    }
+  }
+
+  return history;
+}
 
 describe("Scenarios", () => {
   describe("Ranking", () => {
@@ -827,6 +873,55 @@ describe("Scenarios", () => {
           ).toBe(false);
         }
       }
+    });
+    it("shuffles field groups for 8 players on 1 field", () => {
+      const players = ["A", "B", "C", "D", "E", "F", "G", "H"];
+      const total = 12;
+      const history = playRounds({ players, numberOfFields: 1, rounds: total });
+
+      const fieldGroupByRound = new Map<number, string>();
+      const breaksByPlayer = new Map<string, number>();
+      for (const game of history) {
+        if (game.type === "break") {
+          for (const player of game.players) {
+            addOne(breaksByPlayer, player);
+          }
+        } else {
+          fieldGroupByRound.set(game.round, [...game.players.flat()].sort().join("-"));
+        }
+      }
+
+      // without shuffling the same four players would be on field every
+      // other round, which costs one player a double break now and then
+      for (let r = 3; r <= total; r++) {
+        expect(
+          fieldGroupByRound.get(r),
+          `same field group in rounds ${r - 2} and ${r}`,
+        ).not.toBe(fieldGroupByRound.get(r - 2));
+      }
+      const breaksStats = findMinMax(breaksByPlayer);
+      expect(breaksStats.max - breaksStats.min).to.be.lessThanOrEqual(1);
+    });
+
+    it("spreads opponents for 9 players on 2 fields", () => {
+      const players = ["A", "B", "C", "D", "E", "F", "G", "H", "I"];
+      const history = playRounds({ players, numberOfFields: 2, rounds: 30 });
+
+      const opponents = new Map<string, number>();
+      for (const game of history) {
+        if (game.type === "double") {
+          for (const one of game.players[0]) {
+            for (const two of game.players[1]) {
+              addOne(opponents, pairKey([one, two]));
+            }
+          }
+        }
+      }
+
+      const numberOfPairs = (players.length * (players.length - 1)) / 2;
+      expect(opponents.size).toBe(numberOfPairs);
+      const stats = findMinMax(opponents);
+      expect(stats.max - stats.min).to.be.lessThanOrEqual(4);
     });
   });
 });

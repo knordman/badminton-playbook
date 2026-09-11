@@ -312,8 +312,10 @@ export type Context = {
   allScenarios: Scenario[];
 };
 
-export function pairKey(pair: [string, string]): string {
-  return pair.sort().join("-");
+export function pairKey(pair: readonly [string, string]): string {
+  return pair[0] <= pair[1]
+    ? `${pair[0]}-${pair[1]}`
+    : `${pair[1]}-${pair[0]}`;
 }
 
 export function gameKey(game: Single | Double) {
@@ -326,29 +328,144 @@ export function addOne(map: Map<string, number>, key: string) {
   map.set(key, map.has(key) ? map.get(key)! + 1 : 1);
 }
 
-export function computeNextScenario(context: Context): {
-  chosen: Scenario;
-  alternatives: Scenario[];
-} {
-  const gameScores = new Map<string, number>();
-  const pairScoresForPrevious = new Map<string, number>();
+/**
+ * Scenario score = sum of `count * weight` over its games. A negative weight
+ * is a penalty, a positive one a bonus. `per...` weights are multiplied by a
+ * count, the others apply once. "Extra" means above the lowest count in the
+ * group (fewest breaks, least used pair, ...), so the magnitudes stay bounded
+ * no matter how long the session runs and the weights can be compared
+ * directly against each other. Listed by magnitude, strongest first.
+ *
+ * `recentGame` fades by `recentGame / recency.gameRounds` per round. That
+ * step must stay above `keptPair`: keeping both pairs of last round's game is
+ * the same game again, and that has to lose against a game from a few rounds
+ * ago even when it keeps no pair.
+ */
+type Parameters = {
+  weights: {
+    /** per break a player has above the fewest */
+    perExtraBreak: number;
+    /** game played in the previous round, fading linearly to 0 after
+     *  `recency.gameRounds` rounds */
+    recentGame: number;
+    /** same players on field as in one of the last
+     *  `recency.fieldPlayersRounds` rounds */
+    recentFieldPlayers: number;
+    /** per round the player was already on break directly before */
+    perConsecutiveBreak: number;
+    /** per single a player has above the fewest */
+    perExtraSingle: number;
+    /** pair kept from the previous round, while at most 1 game above the
+     *  least used pair */
+    keptPair: number;
+    /** per time the same game was played before, however long ago */
+    perGameRepeat: number;
+    /** per game a pair has played together above the least used pair */
+    perExtraPairGame: number;
+    /** per game two players met as opponents above the least met pair */
+    perExtraOpponentGame: number;
+  };
+  /** how many rounds back still count as "recent" */
+  recency: {
+    gameRounds: number;
+    fieldPlayersRounds: number;
+  };
+};
+
+const defaultParameters: Parameters = {
+  weights: {
+    perExtraBreak: -3000,
+    recentGame: -3200,
+    recentFieldPlayers: -2000,
+    perConsecutiveBreak: -1500,
+    perExtraSingle: -800,
+    keptPair: 250,
+    perGameRepeat: -150,
+    perExtraPairGame: -100,
+    perExtraOpponentGame: -30,
+  },
+  recency: {
+    gameRounds: 8,
+    fieldPlayersRounds: 3,
+  },
+};
+
+function minOf(map: Map<string, number>, universeSize: number): number {
+  return map.size < universeSize ? 0 : findMinMax(map, { min: 0 }).min;
+}
+
+function fieldPlayersKey(players: Iterable<string>): string {
+  return [...players].sort().join("-");
+}
+
+/**
+ * Everything the scoring needs to know about the history, counted once.
+ * Independent of the weights, so it can be inspected on its own.
+ */
+type HistoryFacts = {
+  previousRound: number;
+  /** pairs that played together in the previous round */
+  pairsOfPreviousRound: Set<string>;
+  numberOf: {
+    /** per player: rounds on break */
+    breaksByPlayer: Map<string, number>;
+    /** per player who was on break in the previous round: rounds on break
+     *  directly before, that one included */
+    consecutiveBreaksByPlayer: Map<string, number>;
+    /** per player: singles played */
+    singlesByPlayer: Map<string, number>;
+    /** per pair: games played together */
+    gamesByPair: Map<string, number>;
+    /** per pair: games where the two met as opponents */
+    gamesByOpponents: Map<string, number>;
+    /** per game: times it was played */
+    occurrencesByGame: Map<string, number>;
+  };
+  /** lowest of the corresponding `numberOf` over all players or pairs */
+  min: {
+    breaks: number;
+    singles: number;
+    gamesByPair: number;
+    gamesByOpponents: number;
+  };
+  lastRound: {
+    /** per game: when it was played last */
+    byGame: Map<string, number>;
+    /** per set of players on field: when they were on field together last */
+    byFieldPlayers: Map<string, number>;
+  };
+};
+
+function collectHistoryFacts(context: Context): HistoryFacts {
   const numberOfBreaksByPlayer = new Map<string, number>();
+  const numberOfConsecutiveBreaksByPlayer = new Map<string, number>();
   const numberOfSinglesByPlayer = new Map<string, number>();
-  const numberOfDoublesByPlayer = new Map<string, number>();
   const numberOfGamesByPair = new Map<string, number>();
-  const playedRounds = context.history.length;
-  const consecutiveBreakStreakByPlayer = new Map<string, number>();
+  const pairsOfPreviousRound = new Set<string>();
+  const numberOfGamesByOpponents = new Map<string, number>();
+  const numberOfOccurrencesByGame = new Map<string, number>();
+  const lastRoundByGame = new Map<string, number>();
+  const lastRoundByFieldPlayers = new Map<string, number>();
   const breakPlayersByRound = new Map<number, Set<string>>();
+  const fieldPlayersByRound = new Map<number, Set<string>>();
 
-  const latestRound =
-    playedRounds > 0 ? context.history[context.history.length - 1].round : 0;
+  const participants = new Set<string>();
+  for (const game of context.allScenarios[0] ?? []) {
+    for (const player of game.players.flat()) {
+      participants.add(player);
+    }
+  }
+  const numberOfPairs = (participants.size * (participants.size - 1)) / 2;
 
-  for (const [index, result] of context.history.entries()) {
+  const previousRound =
+    context.history.length > 0
+      ? context.history[context.history.length - 1].round
+      : 0;
+
+  for (const result of context.history) {
     if (result.type === "break") {
-      let breakers: Set<string>;
-      if (breakPlayersByRound.has(result.round)) {
-        breakers = breakPlayersByRound.get(result.round)!;
-      } else {
+      let breakers = breakPlayersByRound.get(result.round);
+      if (!breakers) {
         breakers = new Set();
         breakPlayersByRound.set(result.round, breakers);
       }
@@ -357,109 +474,200 @@ export function computeNextScenario(context: Context): {
         breakers.add(player);
       }
     } else {
-      const bucket =
-        result.type === "single"
-          ? numberOfSinglesByPlayer
-          : numberOfDoublesByPlayer;
+      let onField = fieldPlayersByRound.get(result.round);
+      if (!onField) {
+        onField = new Set();
+        fieldPlayersByRound.set(result.round, onField);
+      }
       for (const player of result.players.flat()) {
-        addOne(bucket, player);
+        onField.add(player);
       }
 
-      // avoid playing same game, the most for the most current ones
-      gameScores.set(
-        gameKey(result),
-        ((index + 1) / context.history.length) * -(context.history.length * 55),
+      const key = gameKey(result);
+      addOne(numberOfOccurrencesByGame, key);
+      lastRoundByGame.set(
+        key,
+        Math.max(lastRoundByGame.get(key) ?? 0, result.round),
       );
 
-      if (result.type === "double") {
+      if (result.type === "single") {
+        for (const player of result.players) {
+          addOne(numberOfSinglesByPlayer, player);
+        }
+        addOne(numberOfGamesByOpponents, pairKey(result.players));
+      } else {
         const pairOneKey = pairKey(result.players[0]);
         const pairTwoKey = pairKey(result.players[1]);
 
         if (context.gameIdsForPreviousScenario.has(result.id)) {
-          // prefer keeping pair of previous game
-          pairScoresForPrevious.set(pairOneKey, 50);
-          pairScoresForPrevious.set(pairTwoKey, 50);
+          pairsOfPreviousRound.add(pairOneKey);
+          pairsOfPreviousRound.add(pairTwoKey);
         }
 
         addOne(numberOfGamesByPair, pairOneKey);
         addOne(numberOfGamesByPair, pairTwoKey);
+
+        for (const one of result.players[0]) {
+          for (const two of result.players[1]) {
+            addOne(numberOfGamesByOpponents, pairKey([one, two]));
+          }
+        }
       }
     }
   }
 
-  const latestBreakPlayers = breakPlayersByRound.get(latestRound) ?? new Set();
-
-  for (const player of latestBreakPlayers) {
-    let streak = 1;
-    for (let r = latestRound - 1; r >= 0; r--) {
+  for (const player of breakPlayersByRound.get(previousRound) ?? []) {
+    let consecutive = 1;
+    for (let r = previousRound - 1; r >= 0; r--) {
       if (breakPlayersByRound.get(r)?.has(player)) {
-        streak++;
+        consecutive++;
       } else {
         break;
       }
     }
-    consecutiveBreakStreakByPlayer.set(player, streak);
+    numberOfConsecutiveBreaksByPlayer.set(player, consecutive);
   }
 
-  const gameScoring = (game: Single | Double): number => {
-    return gameScores.get(gameKey(game)) ?? 0;
+  for (const [round, onField] of fieldPlayersByRound) {
+    const key = fieldPlayersKey(onField);
+    lastRoundByFieldPlayers.set(
+      key,
+      Math.max(lastRoundByFieldPlayers.get(key) ?? 0, round),
+    );
+  }
+
+  return {
+    previousRound,
+    pairsOfPreviousRound,
+    numberOf: {
+      breaksByPlayer: numberOfBreaksByPlayer,
+      consecutiveBreaksByPlayer: numberOfConsecutiveBreaksByPlayer,
+      singlesByPlayer: numberOfSinglesByPlayer,
+      gamesByPair: numberOfGamesByPair,
+      gamesByOpponents: numberOfGamesByOpponents,
+      occurrencesByGame: numberOfOccurrencesByGame,
+    },
+    min: {
+      breaks: minOf(numberOfBreaksByPlayer, participants.size),
+      singles: minOf(numberOfSinglesByPlayer, participants.size),
+      gamesByPair: minOf(numberOfGamesByPair, numberOfPairs),
+      gamesByOpponents: minOf(numberOfGamesByOpponents, numberOfPairs),
+    },
+    lastRound: {
+      byGame: lastRoundByGame,
+      byFieldPlayers: lastRoundByFieldPlayers,
+    },
+  };
+}
+
+function scoreScenario(
+  scenario: Scenario,
+  facts: HistoryFacts,
+  { weights, recency }: Parameters,
+): number {
+  const breakScoring = (player: string): number => {
+    const gap =
+      (facts.numberOf.breaksByPlayer.get(player) ?? 0) - facts.min.breaks;
+    const consecutive =
+      facts.numberOf.consecutiveBreaksByPlayer.get(player) ?? 0;
+    return (
+      gap * weights.perExtraBreak +
+      consecutive * weights.perConsecutiveBreak
+    );
   };
 
-  const { min: minPair } = findMinMax(numberOfGamesByPair, { max: 0 });
-  const pairsScoring = (double: Double): number => {
+  const repeatScoring = (game: Single | Double): number => {
+    const key = gameKey(game);
+    const lastRound = facts.lastRound.byGame.get(key);
+    if (lastRound === undefined) {
+      return 0;
+    }
+    const roundsAgo = facts.previousRound - lastRound + 1;
+    const recentShare =
+      Math.max(0, recency.gameRounds + 1 - roundsAgo) / recency.gameRounds;
+    return (
+      recentShare * weights.recentGame +
+      facts.numberOf.occurrencesByGame.get(key)! * weights.perGameRepeat
+    );
+  };
+
+  const opponentScoring = (one: string, two: string): number => {
+    const gap =
+      (facts.numberOf.gamesByOpponents.get(pairKey([one, two])) ?? 0) -
+      facts.min.gamesByOpponents;
+    return gap * weights.perExtraOpponentGame;
+  };
+
+  const singleScoring = (single: Single): number => {
+    let output = opponentScoring(single.players[0], single.players[1]);
+    for (const player of single.players) {
+      const gap =
+        (facts.numberOf.singlesByPlayer.get(player) ?? 0) - facts.min.singles;
+      output += gap * weights.perExtraSingle;
+    }
+    return output;
+  };
+
+  const doubleScoring = (double: Double): number => {
     let output = 0;
     for (const pair of double.players) {
       const key = pairKey(pair);
-      const gamesPlayed = numberOfGamesByPair.get(key) ?? 0;
-
-      const shift = minPair + 2;
-
-      if (gamesPlayed < shift) {
-        output += pairScoresForPrevious.get(key) ?? 0;
-      } else if (gamesPlayed >= shift) {
-        output -= 100;
+      const gap =
+        (facts.numberOf.gamesByPair.get(key) ?? 0) - facts.min.gamesByPair;
+      output += gap * weights.perExtraPairGame;
+      if (gap < 2 && facts.pairsOfPreviousRound.has(key)) {
+        output += weights.keptPair;
+      }
+    }
+    for (const one of double.players[0]) {
+      for (const two of double.players[1]) {
+        output += opponentScoring(one, two);
       }
     }
     return output;
   };
 
-  const { max: maxBreaks } = findMinMax(numberOfBreaksByPlayer, { max: 0 });
-  const breakScoring = (player: string): number => {
-    const forPlayer = numberOfBreaksByPlayer.get(player) ?? 0;
-    const fromCount = (maxBreaks - forPlayer) * 3000;
-    const fromStreak = (consecutiveBreakStreakByPlayer.get(player) ?? 0) * 1500;
-
-    return fromCount - fromStreak;
+  const fieldPlayersScoring = (onField: string[]): number => {
+    const lastRound = facts.lastRound.byFieldPlayers.get(
+      fieldPlayersKey(onField),
+    );
+    return lastRound !== undefined &&
+      facts.previousRound - lastRound < recency.fieldPlayersRounds
+      ? weights.recentFieldPlayers
+      : 0;
   };
 
-  const { max: maxSinglesPlayed } = findMinMax(numberOfSinglesByPlayer, {
-    max: 0,
-  });
-  const singleScoring = (player: string): number => {
-    const forPlayer = numberOfSinglesByPlayer.get(player) ?? 0;
-    return (maxSinglesPlayed - forPlayer) * 800;
-  };
+  let score = 0;
+  const onField: string[] = [];
+  for (const game of scenario) {
+    if (game.type === "break") {
+      for (const player of game.players) {
+        score += breakScoring(player);
+      }
+    } else {
+      onField.push(...game.players.flat());
+      score += repeatScoring(game);
+      score +=
+        game.type === "single" ? singleScoring(game) : doubleScoring(game);
+    }
+  }
+  score += fieldPlayersScoring(onField);
+
+  return score;
+}
+
+export function computeNextScenario(
+  context: Context,
+  parameters: Parameters = defaultParameters,
+): {
+  chosen: Scenario;
+  alternatives: Scenario[];
+} {
+  const facts = collectHistoryFacts(context);
 
   const scored = new Map<number, Set<Scenario>>();
   for (const scenario of context.allScenarios) {
-    let score = 0;
-    for (const game of scenario) {
-      if (game.type === "break") {
-        for (const player of game.players) {
-          score += breakScoring(player);
-        }
-      } else {
-        score += gameScoring(game);
-
-        if (game.type === "single") {
-          for (const player of game.players) {
-            score += singleScoring(player);
-          }
-        } else if (game.type === "double") {
-          score += pairsScoring(game);
-        }
-      }
-    }
+    const score = scoreScenario(scenario, facts, parameters);
     scored.set(score, (scored.get(score) ?? new Set()).add(scenario));
   }
 
