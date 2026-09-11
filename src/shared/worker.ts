@@ -44,6 +44,23 @@ function findPointsForPlayer(context: {
 
 let alternatives: Scenario[] = [];
 let currentIndex = 0;
+// scenarios only depend on the set of players and the number of fields, both
+// encoded in the active context, so they are reused until either changes
+let cachedScenarios: { context: string; scenarios: Scenario[] } | null = null;
+
+function scenariosFor(
+  context: string,
+  players: string[],
+  numberOfFields: 1 | 2,
+): Scenario[] {
+  if (cachedScenarios?.context !== context) {
+    cachedScenarios = {
+      context,
+      scenarios: computeAllScenarios(players, numberOfFields),
+    };
+  }
+  return cachedScenarios.scenarios;
+}
 
 async function writeScenarioToPlaying(scenario: Scenario) {
   await db.transaction("rw", [db.playing], async () => {
@@ -152,7 +169,8 @@ self.addEventListener("message", async (event: MessageEvent<WorkerRequest>) => {
     );
 
   const numberOfFields = await db.settings.get(numberOfFieldsSettingId);
-  const allScenarios = computeAllScenarios(
+  const allScenarios = scenariosFor(
+    activeContext,
     players,
     numberOfFields?.value ?? 2
   );
