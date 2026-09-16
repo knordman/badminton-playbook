@@ -394,6 +394,17 @@ function minOf(map: Map<string, number>, universeSize: number): number {
   return map.size < universeSize ? 0 : findMinMax(map, { min: 0 }).min;
 }
 
+function minOverPlayers(
+  map: Map<string, number>,
+  players: readonly string[],
+): number {
+  let min = Infinity;
+  for (const player of players) {
+    min = Math.min(min, map.get(player) ?? 0);
+  }
+  return min === Infinity ? 0 : min;
+}
+
 function fieldPlayersKey(players: Iterable<string>): string {
   return [...players].sort().join("-");
 }
@@ -401,18 +412,26 @@ function fieldPlayersKey(players: Iterable<string>): string {
 /**
  * Everything the scoring needs to know about the history, counted once.
  * Independent of the weights, so it can be inspected on its own.
+ *
+ * Breaks and singles are counted from the round a player entered, not from the
+ * start of the session: on entry a player's counters are raised to the lowest
+ * among the players already there. Without that a player joining an ongoing
+ * session arrives at 0 against everyone else's session total, and the scoring
+ * closes that gap by benching them or feeding them singles for round after
+ * round. The pair counters are left alone - a pair that has never played is
+ * genuinely new, and covering it is what the variety weights are for.
  */
 type HistoryFacts = {
   previousRound: number;
   /** pairs that played together in the previous round */
   pairsOfPreviousRound: Set<string>;
   numberOf: {
-    /** per player: rounds on break */
+    /** per player: rounds on break since entering */
     breaksByPlayer: Map<string, number>;
     /** per player who was on break in the previous round: rounds on break
      *  directly before, that one included */
     consecutiveBreaksByPlayer: Map<string, number>;
-    /** per player: singles played */
+    /** per player: singles played since entering */
     singlesByPlayer: Map<string, number>;
     /** per pair: games played together */
     gamesByPair: Map<string, number>;
@@ -457,63 +476,127 @@ function collectHistoryFacts(context: Context): HistoryFacts {
   }
   const numberOfPairs = (participants.size * (participants.size - 1)) / 2;
 
-  const previousRound =
-    context.history.length > 0
-      ? context.history[context.history.length - 1].round
-      : 0;
-
+  const resultsByRound = new Map<number, FinishedGame[]>();
   for (const result of context.history) {
-    if (result.type === "break") {
-      let breakers = breakPlayersByRound.get(result.round);
-      if (!breakers) {
-        breakers = new Set();
-        breakPlayersByRound.set(result.round, breakers);
-      }
-      for (const player of result.players) {
-        addOne(numberOfBreaksByPlayer, player);
-        breakers.add(player);
-      }
-    } else {
-      let onField = fieldPlayersByRound.get(result.round);
-      if (!onField) {
-        onField = new Set();
-        fieldPlayersByRound.set(result.round, onField);
-      }
-      for (const player of result.players.flat()) {
-        onField.add(player);
-      }
+    let bucket = resultsByRound.get(result.round);
+    if (!bucket) {
+      bucket = [];
+      resultsByRound.set(result.round, bucket);
+    }
+    bucket.push(result);
+  }
+  const roundsInOrder = [...resultsByRound.keys()].sort((a, b) => a - b);
 
-      const key = gameKey(result);
-      addOne(numberOfOccurrencesByGame, key);
-      lastRoundByGame.set(
-        key,
-        Math.max(lastRoundByGame.get(key) ?? 0, result.round),
+  const previousRound = roundsInOrder[roundsInOrder.length - 1] ?? 0;
+
+  /**
+   * Put entering players on the same footing as the ones already there, so
+   * what came before they arrived neither credits nor charges them. Their
+   * counters are only ever raised, never lowered, so a player returning after
+   * a break in attendance keeps what they already earned.
+   */
+  const enter = (entering: readonly string[], incumbents: readonly string[]) => {
+    const floor = {
+      breaks: minOverPlayers(numberOfBreaksByPlayer, incumbents),
+      singles: minOverPlayers(numberOfSinglesByPlayer, incumbents),
+    };
+    for (const player of entering) {
+      numberOfBreaksByPlayer.set(
+        player,
+        Math.max(numberOfBreaksByPlayer.get(player) ?? 0, floor.breaks),
       );
+      numberOfSinglesByPlayer.set(
+        player,
+        Math.max(numberOfSinglesByPlayer.get(player) ?? 0, floor.singles),
+      );
+    }
+  };
 
-      if (result.type === "single") {
+  let playersOfPreviousRound: string[] = [];
+
+  for (const round of roundsInOrder) {
+    const results = resultsByRound.get(round)!;
+
+    const present = new Set<string>();
+    for (const result of results) {
+      for (const player of result.type === "break"
+        ? result.players
+        : result.players.flat()) {
+        present.add(player);
+      }
+    }
+
+    const entering = [...present].filter(
+      (player) => !playersOfPreviousRound.includes(player),
+    );
+    if (entering.length > 0) {
+      enter(entering, playersOfPreviousRound);
+    }
+
+    for (const result of results) {
+      if (result.type === "break") {
+        let breakers = breakPlayersByRound.get(result.round);
+        if (!breakers) {
+          breakers = new Set();
+          breakPlayersByRound.set(result.round, breakers);
+        }
         for (const player of result.players) {
-          addOne(numberOfSinglesByPlayer, player);
+          addOne(numberOfBreaksByPlayer, player);
+          breakers.add(player);
         }
-        addOne(numberOfGamesByOpponents, pairKey(result.players));
       } else {
-        const pairOneKey = pairKey(result.players[0]);
-        const pairTwoKey = pairKey(result.players[1]);
-
-        if (context.gameIdsForPreviousScenario.has(result.id)) {
-          pairsOfPreviousRound.add(pairOneKey);
-          pairsOfPreviousRound.add(pairTwoKey);
+        let onField = fieldPlayersByRound.get(result.round);
+        if (!onField) {
+          onField = new Set();
+          fieldPlayersByRound.set(result.round, onField);
+        }
+        for (const player of result.players.flat()) {
+          onField.add(player);
         }
 
-        addOne(numberOfGamesByPair, pairOneKey);
-        addOne(numberOfGamesByPair, pairTwoKey);
+        const key = gameKey(result);
+        addOne(numberOfOccurrencesByGame, key);
+        lastRoundByGame.set(
+          key,
+          Math.max(lastRoundByGame.get(key) ?? 0, result.round),
+        );
 
-        for (const one of result.players[0]) {
-          for (const two of result.players[1]) {
-            addOne(numberOfGamesByOpponents, pairKey([one, two]));
+        if (result.type === "single") {
+          for (const player of result.players) {
+            addOne(numberOfSinglesByPlayer, player);
+          }
+          addOne(numberOfGamesByOpponents, pairKey(result.players));
+        } else {
+          const pairOneKey = pairKey(result.players[0]);
+          const pairTwoKey = pairKey(result.players[1]);
+
+          if (context.gameIdsForPreviousScenario.has(result.id)) {
+            pairsOfPreviousRound.add(pairOneKey);
+            pairsOfPreviousRound.add(pairTwoKey);
+          }
+
+          addOne(numberOfGamesByPair, pairOneKey);
+          addOne(numberOfGamesByPair, pairTwoKey);
+
+          for (const one of result.players[0]) {
+            for (const two of result.players[1]) {
+              addOne(numberOfGamesByOpponents, pairKey([one, two]));
+            }
           }
         }
       }
     }
+
+    playersOfPreviousRound = [...present];
+  }
+
+  // players on the roster who were not in the last recorded round are entering
+  // the round being computed now - the late joiner has no history at all yet
+  const joiningNow = [...participants].filter(
+    (player) => !playersOfPreviousRound.includes(player),
+  );
+  if (joiningNow.length > 0) {
+    enter(joiningNow, playersOfPreviousRound);
   }
 
   for (const player of breakPlayersByRound.get(previousRound) ?? []) {

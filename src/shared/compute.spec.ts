@@ -10,21 +10,57 @@ import {
 } from "./compute";
 import { consoleLogHistory } from "./debug";
 import { computeStatistics } from "./history";
-import type { FinishedGame } from "./scenarios";
+import type { FinishedGame, Scenario } from "./scenarios";
+
+/**
+ * Breaks or singles per player counted over `from` and later rounds only,
+ * with an explicit 0 for players who got none.
+ */
+function countFromRound(spec: {
+  history: FinishedGame[];
+  players: string[];
+  from: number;
+  of: "break" | "single";
+}): Map<string, number> {
+  const counts = new Map(spec.players.map((player) => [player, 0]));
+  for (const game of spec.history) {
+    if (game.round < spec.from || game.type !== spec.of) {
+      continue;
+    }
+    for (const player of game.players.flat()) {
+      addOne(counts, player);
+    }
+  }
+  return counts;
+}
 
 function playRounds(spec: {
   players: string[];
   numberOfFields: 1 | 2;
   rounds: number;
+  /** who is there for a given round; by default every player, every round */
+  attending?: (round: number) => string[];
 }): FinishedGame[] {
-  const allScenarios = computeAllScenarios(spec.players, spec.numberOfFields);
   const history: FinishedGame[] = [];
   let id = 0;
   let gameIdsForPreviousScenario = new Set<number>();
 
+  // scenarios only depend on the roster, so they are reused while it holds
+  const scenariosByRoster = new Map<string, Scenario[]>();
+  const scenariosFor = (roster: string[]) => {
+    const key = roster.join("-");
+    if (!scenariosByRoster.has(key)) {
+      scenariosByRoster.set(
+        key,
+        computeAllScenarios(roster, spec.numberOfFields),
+      );
+    }
+    return scenariosByRoster.get(key)!;
+  };
+
   for (let round = 1; round <= spec.rounds; round++) {
     const { chosen } = computeNextScenario({
-      allScenarios,
+      allScenarios: scenariosFor(spec.attending?.(round) ?? spec.players),
       history,
       gameIdsForPreviousScenario,
     });
@@ -922,6 +958,81 @@ describe("Scenarios", () => {
       expect(opponents.size).toBe(numberOfPairs);
       const stats = findMinMax(opponents);
       expect(stats.max - stats.min).to.be.lessThanOrEqual(4);
+    });
+
+    it("balances singles from the round a late player joins", () => {
+      const players = ["A", "B", "C", "D", "E", "F", "G"];
+      const joinsAt = 13;
+      const history = playRounds({
+        players,
+        numberOfFields: 2,
+        rounds: 26,
+        attending: (round) =>
+          round < joinsAt ? players.slice(0, -1) : players,
+      });
+
+      // counting the whole session, G is 12 rounds of singles behind and the
+      // scoring used to close that gap by putting G in singles every round
+      const singles = countFromRound({
+        history,
+        players,
+        from: joinsAt,
+        of: "single",
+      });
+
+      const stats = findMinMax(singles);
+      expect(stats.max - stats.min).to.be.lessThanOrEqual(2);
+    });
+
+    it("balances breaks from the round a late player joins", () => {
+      const players = ["A", "B", "C", "D", "E", "F", "G", "H", "I"];
+      const joinsAt = 13;
+      const history = playRounds({
+        players,
+        numberOfFields: 1,
+        rounds: 26,
+        attending: (round) =>
+          round < joinsAt ? players.slice(0, -1) : players,
+      });
+
+      // on a single field this used to bench I for 12 of the 14 rounds
+      const breaks = countFromRound({
+        history,
+        players,
+        from: joinsAt,
+        of: "break",
+      });
+
+      const stats = findMinMax(breaks);
+      expect(stats.max - stats.min).to.be.lessThanOrEqual(2);
+    });
+
+    it("balances breaks for a player returning after some rounds away", () => {
+      const players = ["A", "B", "C", "D", "E", "F", "G"];
+      const away = { player: "G", from: 6, to: 12 };
+      const rounds = 24;
+      const history = playRounds({
+        players,
+        numberOfFields: 1,
+        rounds,
+        attending: (round) =>
+          round >= away.from && round <= away.to
+            ? players.filter((player) => player !== away.player)
+            : players,
+      });
+
+      const breaks = countFromRound({
+        history,
+        players,
+        from: away.to + 1,
+        of: "break",
+      });
+
+      // 12 rounds, 3 of 7 players on break each: a fair share is just over 5
+      const fairShare = Math.ceil(
+        ((rounds - away.to) * 3) / players.length,
+      );
+      expect(breaks.get(away.player)).to.be.lessThan(fairShare);
     });
   });
 });
