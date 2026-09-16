@@ -10,7 +10,7 @@ import {
 } from "./compute";
 import { consoleLogHistory } from "./debug";
 import { computeStatistics } from "./history";
-import type { FinishedGame, Scenario } from "./scenarios";
+import { isPlayable, type FinishedGame, type Scenario } from "./scenarios";
 
 /**
  * Breaks or singles per player counted over `from` and later rounds only,
@@ -40,30 +40,49 @@ function playRounds(spec: {
   rounds: number;
   /** who is there for a given round; by default every player, every round */
   attending?: (round: number) => string[];
+  /** players who have opted out of singles; by default nobody */
+  noSingles?: string[];
+  /** who has opted out for a given round; overrides `noSingles` when given */
+  optingOutAt?: (round: number) => string[];
 }): FinishedGame[] {
   const history: FinishedGame[] = [];
   let id = 0;
   let gameIdsForPreviousScenario = new Set<number>();
+  const optedOutSinglesByRound = new Map<number, ReadonlySet<string>>();
 
-  // scenarios only depend on the roster, so they are reused while it holds
+  const optedOutAt = (round: number) =>
+    new Set(spec.optingOutAt?.(round) ?? spec.noSingles ?? []);
+
+  // scenarios only depend on the roster and who plays singles in it
   const scenariosByRoster = new Map<string, Scenario[]>();
-  const scenariosFor = (roster: string[]) => {
-    const key = roster.join("-");
+  const scenariosFor = (roster: string[], eligible: ReadonlySet<string>) => {
+    const key = `${roster.join("-")}|${[...eligible].sort().join("-")}`;
     if (!scenariosByRoster.has(key)) {
       scenariosByRoster.set(
         key,
-        computeAllScenarios(roster, spec.numberOfFields),
+        computeAllScenarios(roster, spec.numberOfFields, eligible),
       );
     }
     return scenariosByRoster.get(key)!;
   };
 
   for (let round = 1; round <= spec.rounds; round++) {
+    const roster = spec.attending?.(round) ?? spec.players;
+    const optedOut = optedOutAt(round);
+    const singlesEligible = new Set(
+      roster.filter((player) => !optedOut.has(player)),
+    );
     const { chosen } = computeNextScenario({
-      allScenarios: scenariosFor(spec.attending?.(round) ?? spec.players),
+      allScenarios: scenariosFor(roster, singlesEligible),
       history,
       gameIdsForPreviousScenario,
+      singlesEligible,
+      optedOutSinglesByRound,
     });
+    optedOutSinglesByRound.set(
+      round,
+      new Set(roster.filter((player) => optedOut.has(player))),
+    );
     gameIdsForPreviousScenario = new Set<number>();
     for (const game of chosen) {
       const idGame = id++;
@@ -1033,6 +1052,216 @@ describe("Scenarios", () => {
         ((rounds - away.to) * 3) / players.length,
       );
       expect(breaks.get(away.player)).to.be.lessThan(fairShare);
+    });
+  });
+
+  describe("Opting out of singles", () => {
+    const eligible = (players: string[], optedOut: string[]) =>
+      new Set(players.filter((player) => !optedOut.includes(player)));
+
+    it("never puts an opted out player in a single", () => {
+      const players = ["A", "B", "C", "D", "E", "F", "G"];
+      const scenarios = computeAllScenarios(
+        players,
+        2,
+        eligible(players, ["D"]),
+      );
+
+      expect(scenarios.length).to.be.greaterThan(0);
+      for (const scenario of scenarios) {
+        for (const game of scenario) {
+          if (game.type === "single") {
+            expect(game.players).to.not.include("D");
+          }
+        }
+      }
+    });
+
+    it("plays a double instead of two singles for 4 players on 2 fields", () => {
+      const players = ["A", "B", "C", "D"];
+      const scenarios = computeAllScenarios(
+        players,
+        2,
+        eligible(players, ["D"]),
+      );
+
+      expect(scenarios.length).to.be.greaterThan(0);
+      for (const scenario of scenarios) {
+        expect(scenario.map((game) => game.type)).to.deep.equal(["double"]);
+      }
+    });
+
+    it("keeps an opted out player playing among 5 players on 2 fields", () => {
+      const players = ["A", "B", "C", "D", "E"];
+      const optedOut = "E";
+      const rounds = 12;
+      const history = playRounds({
+        players,
+        numberOfFields: 2,
+        rounds,
+        noSingles: [optedOut],
+      });
+
+      // the shape is one double plus one break, so nobody is stuck on the bench
+      for (const game of history) {
+        expect(game.type).to.not.equal("single");
+      }
+
+      const breaks = countFromRound({
+        history,
+        players,
+        from: 1,
+        of: "break",
+      });
+      const counts = [...breaks.values()];
+      expect(Math.max(...counts) - Math.min(...counts)).to.be.lessThan(2);
+      expect(breaks.get(optedOut)).to.be.lessThan(rounds);
+    });
+
+    it("keeps the single for 6 players on 2 fields with only 2 eligible", () => {
+      const players = ["A", "B", "C", "D", "E", "F"];
+      const scenarios = computeAllScenarios(
+        players,
+        2,
+        eligible(players, ["C", "D", "E", "F"]),
+      );
+
+      expect(scenarios.length).to.be.greaterThan(0);
+      for (const scenario of scenarios) {
+        expect([...scenario.map((game) => game.type)].sort()).to.deep.equal([
+          "double",
+          "single",
+        ]);
+      }
+    });
+
+    it("drops the single for 6 players on 2 fields with 1 eligible", () => {
+      const players = ["A", "B", "C", "D", "E", "F"];
+      const scenarios = computeAllScenarios(
+        players,
+        2,
+        eligible(players, ["B", "C", "D", "E", "F"]),
+      );
+
+      expect(scenarios.length).to.be.greaterThan(0);
+      for (const scenario of scenarios) {
+        expect([...scenario.map((game) => game.type)].sort()).to.deep.equal([
+          "break",
+          "double",
+        ]);
+      }
+    });
+
+    it("balances singles among the players who still play them", () => {
+      const players = ["A", "B", "C", "D", "E", "F", "G"];
+      const optedOut = "D";
+      const rounds = 14;
+      const history = playRounds({
+        players,
+        numberOfFields: 2,
+        rounds,
+        noSingles: [optedOut],
+      });
+
+      const singles = countFromRound({
+        history,
+        players,
+        from: 1,
+        of: "single",
+      });
+
+      expect(singles.get(optedOut)).to.equal(0);
+
+      const others = players
+        .filter((player) => player !== optedOut)
+        .map((player) => singles.get(player)!);
+      expect(Math.max(...others) - Math.min(...others)).to.be.lessThan(2);
+    });
+
+    it("balances singles from the round a late player joins", () => {
+      const players = ["A", "B", "C", "D", "E", "F", "G"];
+      const optedOut = "D";
+      const joinsAt = 13;
+      const history = playRounds({
+        players,
+        numberOfFields: 2,
+        rounds: 26,
+        noSingles: [optedOut],
+        attending: (round) =>
+          round < joinsAt ? players.slice(0, -1) : players,
+      });
+
+      // the entry floor has to be read off the players who play singles: taken
+      // over everyone it would be D's frozen 0, letting G in at no gap at all
+      // and the scoring would then feed G singles round after round
+      const singles = countFromRound({
+        history,
+        players: players.filter((player) => player !== optedOut),
+        from: joinsAt,
+        of: "single",
+      });
+
+      const stats = findMinMax(singles);
+      expect(stats.max - stats.min).to.be.lessThanOrEqual(2);
+    });
+
+    it("does not flood a player who opts back in with singles", () => {
+      const players = ["A", "B", "C", "D", "E", "F", "G"];
+      const optsInAt = 15;
+      const flipper = "D";
+      const window = 7;
+      const history = playRounds({
+        players,
+        numberOfFields: 2,
+        rounds: optsInAt + window - 1,
+        optingOutAt: (round) => (round < optsInAt ? [flipper] : []),
+      });
+
+      // D sat out 14 rounds of singles without ever being a candidate for one.
+      // Counted over the whole session that reads as a 7 game deficit, and
+      // closing it used to hand D 6 of the next 7 singles. Entering the
+      // singles group at its lowest count instead, D is due a fair share of
+      // the 7 singles in this window - 2 - plus at most the one extra that
+      // entering at the lowest rather than the highest count is worth.
+      const singles = history.filter(
+        (game) => game.type === "single" && game.round >= optsInAt,
+      );
+      expect(singles.length).to.equal(window);
+
+      const playedByFlipper = singles.filter((game) =>
+        (game.players as string[]).includes(flipper),
+      ).length;
+      expect(playedByFlipper).to.be.lessThanOrEqual(3);
+    });
+
+    it("leaves the other counters alone when a player opts back in", () => {
+      const players = ["A", "B", "C", "D", "E", "F", "G"];
+      const optsInAt = 15;
+      const history = playRounds({
+        players,
+        numberOfFields: 2,
+        rounds: 26,
+        optingOutAt: (round) => (round < optsInAt ? ["D"] : []),
+      });
+
+      // breaks accrue whether or not a player is up for singles, so the flip
+      // must not disturb them
+      const breaks = countFromRound({
+        history,
+        players,
+        from: 1,
+        of: "break",
+      });
+      const stats = findMinMax(breaks);
+      expect(stats.max - stats.min).to.be.lessThanOrEqual(1);
+    });
+
+    it("reports 2 and 3 player rosters without singles as unplayable", () => {
+      expect(isPlayable(3, 1)).to.equal(false);
+      expect(isPlayable(2, 1)).to.equal(false);
+      expect(isPlayable(3, 2)).to.equal(true);
+      expect(isPlayable(5, 0)).to.equal(true);
+      expect(isPlayable(7)).to.equal(true);
     });
   });
 });

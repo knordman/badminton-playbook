@@ -34,7 +34,7 @@ export default {
           db.context.get(playersContextId),
         ]);
         const activeContext = getActiveContext(
-          players.map((p) => p.name),
+          players,
           numberOfFields?.value ?? 2
         );
 
@@ -162,7 +162,7 @@ export default {
 
           const players = await db.players.toArray();
           const activeContext = getActiveContext(
-            players.map((p) => p.name),
+            players,
             newValue === "One" ? 1 : 2
           );
           return { activeContext };

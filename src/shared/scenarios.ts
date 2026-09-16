@@ -100,15 +100,41 @@ export function gameIsFinished(result: Result): boolean {
   }
 }
 
-export function isPlayable(numberOfPlayers: number): boolean {
-  return numberOfPlayers >= 2 && numberOfPlayers <= 11;
+export type Player = { name: string; noSingles?: boolean };
+
+export function playsSingles(player: Player): boolean {
+  return !player.noSingles;
 }
 
+/**
+ * At 2 and 3 players a single is the only game that fits, so there is nothing
+ * to play unless at least two of them are up for singles. Every larger roster
+ * has a shape that works whatever the opt-outs are.
+ */
+export function isPlayable(
+  numberOfPlayers: number,
+  numberOfSinglesEligible: number = numberOfPlayers,
+): boolean {
+  if (numberOfPlayers < 2 || numberOfPlayers > 11) {
+    return false;
+  }
+  return numberOfPlayers > 3 || numberOfSinglesEligible >= 2;
+}
+
+/**
+ * Identifies the roster the current plan belongs to. The opt-outs are part of
+ * it: they change which scenarios exist, so a plan computed under different
+ * ones is stale. Players who play singles contribute their bare name, so a
+ * roster without opt-outs keys exactly as it did before the flag existed.
+ */
 export function getActiveContext(
-  players: string[],
+  players: Player[],
   numberOfFields: number,
 ): PlayersContext["value"] | undefined {
-  return isPlayable(players.length)
-    ? `${players.sort().join("-")}:${numberOfFields}`
+  return isPlayable(players.length, players.filter(playsSingles).length)
+    ? `${players
+        .map((player) => (player.noSingles ? `${player.name}*` : player.name))
+        .sort()
+        .join("-")}:${numberOfFields}`
     : undefined;
 }

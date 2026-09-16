@@ -31,6 +31,7 @@ export default {
           v-for="player of players"
           :key="player.name"
           :title="player.name"
+          :subtitle="player.noSingles ? 'Opted out of singles' : undefined"
           append-icon="mdi-close"
           @click="removePlayer(player.name, $event)"
         ></v-list-item>

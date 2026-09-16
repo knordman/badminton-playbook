@@ -2,6 +2,7 @@ import { computeAllScenarios, computeNextScenario } from "@/shared/compute";
 import { db, numberOfFieldsSettingId, playersContextId } from "@/shared/db";
 import {
   getActiveContext,
+  playsSingles,
   type Double,
   type FinishedGame,
   type Game,
@@ -52,11 +53,12 @@ function scenariosFor(
   context: string,
   players: string[],
   numberOfFields: 1 | 2,
+  singlesEligible: ReadonlySet<string>,
 ): Scenario[] {
   if (cachedScenarios?.context !== context) {
     cachedScenarios = {
       context,
-      scenarios: computeAllScenarios(players, numberOfFields),
+      scenarios: computeAllScenarios(players, numberOfFields, singlesEligible),
     };
   }
   return cachedScenarios.scenarios;
@@ -86,15 +88,21 @@ self.addEventListener("message", async (event: MessageEvent<WorkerRequest>) => {
     return;
   }
 
-  const [players, activeContext, gameIdsForPreviousScenario, history] =
+  const [
+    players,
+    activeContext,
+    gameIdsForPreviousScenario,
+    history,
+    optedOutSinglesByRound,
+  ] =
     await db.transaction(
       "rw",
-      [db.players, db.results, db.playing, db.context, db.settings],
+      [db.players, db.results, db.playing, db.context, db.settings, db.rounds],
       async () => {
         const players = await db.players.toArray();
         const numberOfFields = await db.settings.get(numberOfFieldsSettingId);
         const activeContext = getActiveContext(
-          players.map((p) => p.name),
+          players,
           numberOfFields?.value ?? 2
         );
         const playing = await db.playing.toArray();
@@ -159,25 +167,49 @@ self.addEventListener("message", async (event: MessageEvent<WorkerRequest>) => {
         await db.results.bulkPut(writeResults);
         await db.playing.clear();
 
+        // the games just finished were generated under the current opt-outs:
+        // any change to the roster clears db.playing, so a round that reaches
+        // this point was never played under different ones
+        const rounds = await db.rounds.toArray();
+        if (writeResults.length > 0) {
+          const round = {
+            round: currentRound,
+            optedOutSingles: players
+              .filter((player) => !playsSingles(player))
+              .map((player) => player.name),
+          };
+          await db.rounds.put(round);
+          rounds.push(round);
+        }
+
         return [
-          players.map((p) => p.name),
+          players,
           activeContext!,
           new Set(previousGames.keys()),
           [...finished, ...writeResults],
+          new Map(
+            rounds.map((r) => [r.round, new Set(r.optedOutSingles)] as const)
+          ),
         ];
       }
     );
 
   const numberOfFields = await db.settings.get(numberOfFieldsSettingId);
+  const singlesEligible = new Set(
+    players.filter(playsSingles).map((p) => p.name)
+  );
   const allScenarios = scenariosFor(
     activeContext,
-    players,
-    numberOfFields?.value ?? 2
+    players.map((p) => p.name),
+    numberOfFields?.value ?? 2,
+    singlesEligible
   );
   const result = computeNextScenario({
     allScenarios,
     gameIdsForPreviousScenario,
     history,
+    singlesEligible,
+    optedOutSinglesByRound,
   });
 
   alternatives = result.alternatives;

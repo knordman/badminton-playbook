@@ -85,9 +85,21 @@ function* generateScenarios(
 
 type ConcurrentGames = { single: number; double: number; break: number };
 
+/**
+ * The round shape. Singles only ever appear where there are too few players to
+ * fill the available fields with doubles, so every shape that contains one has
+ * to bend to the number of singles-eligible players (`numberOfSinglesEligible`,
+ * everyone who has not opted out). Shapes without singles are unaffected.
+ *
+ * At 4 and 5 players on 2 fields a single opt-out drops the whole shape to one
+ * double: two singles put the same four players on field as one double does,
+ * but leave no field slot an opted-out player could occupy, so at 5 players
+ * they would be the one on break every single round.
+ */
 function getConcurrentGames(
   numberOfPlayers: number,
   numberOfFields: 1 | 2,
+  numberOfSinglesEligible: number,
 ): ConcurrentGames {
   if (numberOfFields === 1) {
     switch (numberOfPlayers) {
@@ -119,13 +131,21 @@ function getConcurrentGames(
       case 3:
         return { single: 1, double: 0, break: 1 };
       case 4:
-        return { single: 2, double: 0, break: 0 };
+        return numberOfSinglesEligible < 4
+          ? { single: 0, double: 1, break: 0 }
+          : { single: 2, double: 0, break: 0 };
       case 5:
-        return { single: 2, double: 0, break: 1 };
+        return numberOfSinglesEligible < 5
+          ? { single: 0, double: 1, break: 1 }
+          : { single: 2, double: 0, break: 1 };
       case 6:
-        return { single: 1, double: 1, break: 0 };
+        return numberOfSinglesEligible < 2
+          ? { single: 0, double: 1, break: 2 }
+          : { single: 1, double: 1, break: 0 };
       case 7:
-        return { single: 1, double: 1, break: 1 };
+        return numberOfSinglesEligible < 2
+          ? { single: 0, double: 1, break: 3 }
+          : { single: 1, double: 1, break: 1 };
       case 8:
         return { single: 0, double: 2, break: 0 };
       case 9:
@@ -139,14 +159,24 @@ function getConcurrentGames(
   throw new Error(`unhandled number of players: ${numberOfPlayers}`);
 }
 
+/**
+ * `singlesEligible` are the players who may be picked for a single; it defaults
+ * to everyone. Ineligible players are filtered out of the single pairs before
+ * any scenario is built, so no scenario respecting the opt-out has to be thrown
+ * away afterwards - and `getConcurrentGames` bends the round shape to the
+ * eligible count, so the pre-filter can never leave the set empty.
+ */
 export function computeAllScenarios(
   participants: string[],
   numberOfFields: 1 | 2,
+  singlesEligible: ReadonlySet<string> = new Set(participants),
 ): Scenario[] {
   const numberOfPlayers = participants.length;
   const pairs = <[string, string][]>generateCombinationsOfSize(participants, 2);
 
-  const allSingles = [...pairs];
+  const allSingles = pairs.filter(
+    ([one, two]) => singlesEligible.has(one) && singlesEligible.has(two),
+  );
   const allDoubles = <[[string, string], [string, string]][]>(
     generateCombinationsOfSize(pairs, 2).filter(
       (concurrent) =>
@@ -155,7 +185,11 @@ export function computeAllScenarios(
     )
   );
 
-  const games = getConcurrentGames(numberOfPlayers, numberOfFields);
+  const games = getConcurrentGames(
+    numberOfPlayers,
+    numberOfFields,
+    participants.filter((player) => singlesEligible.has(player)).length,
+  );
 
   const scenarios: Scenario[] = [];
 
@@ -310,6 +344,11 @@ export type Context = {
   history: FinishedGame[];
   gameIdsForPreviousScenario: Set<number>;
   allScenarios: Scenario[];
+  /** players who may be picked for a single; defaults to every participant */
+  singlesEligible?: ReadonlySet<string>;
+  /** per round already played: who had opted out of singles then. A round
+   *  without an entry is read as nobody having opted out. */
+  optedOutSinglesByRound?: ReadonlyMap<number, ReadonlySet<string>>;
 };
 
 export function pairKey(pair: readonly [string, string]): string {
@@ -418,8 +457,11 @@ function fieldPlayersKey(players: Iterable<string>): string {
  * among the players already there. Without that a player joining an ongoing
  * session arrives at 0 against everyone else's session total, and the scoring
  * closes that gap by benching them or feeding them singles for round after
- * round. The pair counters are left alone - a pair that has never played is
- * genuinely new, and covering it is what the variety weights are for.
+ * round. Singles have their own entry: a player counts as entering them the
+ * round they first play singles at all, so opting in mid-session is treated
+ * like arriving mid-session rather than like a long singles drought. The pair
+ * counters are left alone - a pair that has never played is genuinely new, and
+ * covering it is what the variety weights are for.
  */
 type HistoryFacts = {
   previousRound: number;
@@ -440,7 +482,8 @@ type HistoryFacts = {
     /** per game: times it was played */
     occurrencesByGame: Map<string, number>;
   };
-  /** lowest of the corresponding `numberOf` over all players or pairs */
+  /** lowest of the corresponding `numberOf` over all players or pairs -
+   *  `singles` over the singles-eligible players only */
   min: {
     breaks: number;
     singles: number;
@@ -476,6 +519,15 @@ function collectHistoryFacts(context: Context): HistoryFacts {
   }
   const numberOfPairs = (participants.size * (participants.size - 1)) / 2;
 
+  // players who have opted out of singles never appear in one, so their singles
+  // counter stays at whatever it entered with. Left in the singles accounting
+  // they would hold its minimum down forever while everyone else climbs, and
+  // the gaps the weights are calibrated against would grow without bound.
+  const singlesEligible = context.singlesEligible ?? participants;
+  const eligiblePlayers = [...participants].filter((player) =>
+    singlesEligible.has(player),
+  );
+
   const resultsByRound = new Map<number, FinishedGame[]>();
   for (const result of context.history) {
     let bucket = resultsByRound.get(result.round);
@@ -490,29 +542,35 @@ function collectHistoryFacts(context: Context): HistoryFacts {
   const previousRound = roundsInOrder[roundsInOrder.length - 1] ?? 0;
 
   /**
-   * Put entering players on the same footing as the ones already there, so
-   * what came before they arrived neither credits nor charges them. Their
-   * counters are only ever raised, never lowered, so a player returning after
-   * a break in attendance keeps what they already earned.
+   * Put players entering a counter's group on the same footing as the ones
+   * already in it, so what came before they arrived neither credits nor
+   * charges them. Counters are only ever raised, never lowered, so someone
+   * returning to a group keeps what they already earned there.
    */
-  const enter = (entering: readonly string[], incumbents: readonly string[]) => {
-    const floor = {
-      breaks: minOverPlayers(numberOfBreaksByPlayer, incumbents),
-      singles: minOverPlayers(numberOfSinglesByPlayer, incumbents),
-    };
+  const raiseToFloor = (
+    counters: Map<string, number>,
+    entering: readonly string[],
+    incumbents: readonly string[],
+  ) => {
+    if (entering.length === 0) {
+      return;
+    }
+    const floor = minOverPlayers(counters, incumbents);
     for (const player of entering) {
-      numberOfBreaksByPlayer.set(
-        player,
-        Math.max(numberOfBreaksByPlayer.get(player) ?? 0, floor.breaks),
-      );
-      numberOfSinglesByPlayer.set(
-        player,
-        Math.max(numberOfSinglesByPlayer.get(player) ?? 0, floor.singles),
-      );
+      counters.set(player, Math.max(counters.get(player) ?? 0, floor));
     }
   };
 
+  const entrants = (group: readonly string[], previous: readonly string[]) =>
+    group.filter((player) => !previous.includes(player));
+
+  // breaks are counted over everyone present, singles only over the players
+  // eligible for them that round - a player who opts in mid-session enters the
+  // singles group exactly the way a late arrival enters the session, and
+  // without that would carry a frozen count that the scoring would then spend
+  // round after round trying to close
   let playersOfPreviousRound: string[] = [];
+  let singlesPlayersOfPreviousRound: string[] = [];
 
   for (const round of roundsInOrder) {
     const results = resultsByRound.get(round)!;
@@ -526,12 +584,21 @@ function collectHistoryFacts(context: Context): HistoryFacts {
       }
     }
 
-    const entering = [...present].filter(
-      (player) => !playersOfPreviousRound.includes(player),
+    const optedOut = context.optedOutSinglesByRound?.get(round);
+    const singlesPlayers = [...present].filter(
+      (player) => !optedOut?.has(player),
     );
-    if (entering.length > 0) {
-      enter(entering, playersOfPreviousRound);
-    }
+
+    raiseToFloor(
+      numberOfBreaksByPlayer,
+      entrants([...present], playersOfPreviousRound),
+      playersOfPreviousRound,
+    );
+    raiseToFloor(
+      numberOfSinglesByPlayer,
+      entrants(singlesPlayers, singlesPlayersOfPreviousRound),
+      singlesPlayersOfPreviousRound,
+    );
 
     for (const result of results) {
       if (result.type === "break") {
@@ -588,16 +655,22 @@ function collectHistoryFacts(context: Context): HistoryFacts {
     }
 
     playersOfPreviousRound = [...present];
+    singlesPlayersOfPreviousRound = singlesPlayers;
   }
 
-  // players on the roster who were not in the last recorded round are entering
-  // the round being computed now - the late joiner has no history at all yet
-  const joiningNow = [...participants].filter(
-    (player) => !playersOfPreviousRound.includes(player),
+  // the round being computed now: anyone on the roster who was not in the last
+  // recorded round is arriving, and anyone eligible for singles who was not
+  // eligible then is entering the singles group
+  raiseToFloor(
+    numberOfBreaksByPlayer,
+    entrants([...participants], playersOfPreviousRound),
+    playersOfPreviousRound,
   );
-  if (joiningNow.length > 0) {
-    enter(joiningNow, playersOfPreviousRound);
-  }
+  raiseToFloor(
+    numberOfSinglesByPlayer,
+    entrants(eligiblePlayers, singlesPlayersOfPreviousRound),
+    singlesPlayersOfPreviousRound,
+  );
 
   for (const player of breakPlayersByRound.get(previousRound) ?? []) {
     let consecutive = 1;
@@ -632,7 +705,7 @@ function collectHistoryFacts(context: Context): HistoryFacts {
     },
     min: {
       breaks: minOf(numberOfBreaksByPlayer, participants.size),
-      singles: minOf(numberOfSinglesByPlayer, participants.size),
+      singles: minOverPlayers(numberOfSinglesByPlayer, eligiblePlayers),
       gamesByPair: minOf(numberOfGamesByPair, numberOfPairs),
       gamesByOpponents: minOf(numberOfGamesByOpponents, numberOfPairs),
     },

@@ -8,6 +8,7 @@ export default {
       name: ref<string>(""),
       error: ref<string | undefined>(undefined),
       addAnother: ref<boolean>(true),
+      noSingles: ref<boolean>(false),
     };
   },
 
@@ -21,8 +22,9 @@ export default {
         if (count > 0) {
           this.error = `${this.name} has already been added`;
         } else {
-          await db.players.add({ name: this.name });
+          await db.players.add({ name: this.name, noSingles: this.noSingles });
           this.name = "";
+          this.noSingles = false;
           this.error = "";
           if (!this.addAnother) {
             dialogIsActive.value = false;
@@ -50,6 +52,11 @@ export default {
             label="Name"
             :error-messages="error"
           ></v-text-field>
+          <v-checkbox
+            label="Opt out of singles"
+            hide-details
+            v-model="noSingles"
+          ></v-checkbox>
           <v-checkbox label="Add another after this one" v-model="addAnother"></v-checkbox>
         </v-card-text>
         <v-card-actions>
