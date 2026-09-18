@@ -64,11 +64,18 @@ function scenariosFor(
   return cachedScenarios.scenarios;
 }
 
+// Dexie writes the generated id back onto the object passed to add(); the
+// scenarios are cached across rounds, so adding a cached game directly would
+// reuse its previous round's id and overwrite that round's result
+function addToPlaying(game: Game) {
+  return db.playing.add({ ...game });
+}
+
 async function writeScenarioToPlaying(scenario: Scenario) {
   await db.transaction("rw", [db.playing], async () => {
     await db.playing.clear();
     for (const game of scenario) {
-      await db.playing.add(game);
+      await addToPlaying(game);
     }
   });
 }
@@ -218,7 +225,7 @@ self.addEventListener("message", async (event: MessageEvent<WorkerRequest>) => {
 
   await db.transaction("rw", [db.playing, db.context], async () => {
     for (const game of result.chosen) {
-      await db.playing.add(game);
+      await addToPlaying(game);
     }
     await db.context.put({
       id: playersContextId,
