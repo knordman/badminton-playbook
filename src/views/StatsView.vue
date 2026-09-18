@@ -1,58 +1,24 @@
 <script lang="ts">
-import { db } from "@/shared/db";
-import { computeStatistics } from "@/shared/history";
-import type { Double, Single } from "@/shared/scenarios";
-import { from, useObservable } from "@vueuse/rxjs";
-import { liveQuery } from "dexie";
+import { percentFormat, statsByPlayer, statsRows, useFinishedResults, winningRatioFor } from "@/shared/stats";
 import { statsMode } from "@/shared/statsMode";
-
-const percentFormat = new Intl.NumberFormat("fi-FI", {
-  style: "percent",
-  minimumFractionDigits: 0,
-  maximumFractionDigits: 0,
-  minimumIntegerDigits: 1,
-});
 
 export default {
   setup() {
     return {
-      results: useObservable(
-        from(
-          liveQuery(() =>
-            db.results
-              .where("[type+finished]")
-              .anyOf([
-                [<Single["type"]>"single", 1],
-                [<Double["type"]>"double", 1],
-              ])
-              .toArray()
-          )
-        )
-      ),
+      results: useFinishedResults(),
       percentFormat,
       mode: statsMode,
     };
   },
 
   computed: {
-    winningRatio() {
-      return (row: ReturnType<typeof computeStatistics> extends Map<string, infer V> ? V : never) => {
-        const m = this.mode;
-        if (m === "Games") return row.winningRatio.games;
-        if (m === "Points") return row.winningRatio.points;
-        if (m === "Single") return row.winningRatio.singles;
-        return row.winningRatio.doubles;
-      };
-    },
     rows() {
-      const byPlayer = computeStatistics(this.results ?? []);
-      return [...byPlayer.entries()]
-        .map(([player, row]) => ({
-          player,
-          ...row,
-        }))
-        .sort((a, b) => this.winningRatio(b) - this.winningRatio(a));
+      return statsRows(statsByPlayer(this.results), this.mode);
     },
+  },
+
+  methods: {
+    winningRatioFor,
   },
 };
 </script>
@@ -93,7 +59,7 @@ export default {
             <td>{{ item.doubles.points.won }} / {{ item.doubles.points.played }}</td>
             <td>{{ item.doubles.won }} / {{ item.doubles.played }}</td>
           </template>
-          <td>{{ percentFormat.format(winningRatio(item)) }}</td>
+          <td>{{ percentFormat.format(winningRatioFor(item, mode)) }}</td>
         </tr>
       </tbody>
     </v-table>
