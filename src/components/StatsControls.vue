@@ -1,13 +1,15 @@
 <script lang="ts">
 import { db, playersContextId } from "@/shared/db";
+import { statsByPlayer, useFinishedResults } from "@/shared/stats";
+import { buildStatsCard, dateFormat, renderStatsCardPng } from "@/shared/statsCard";
 import { statsMode, cycleStatsMode } from "@/shared/statsMode";
 
 function today() {
   return new Date().toJSON().split("T")[0];
 }
 
-function saveFile(content: string, type: string, filename: string) {
-  const blob = new Blob([content], { type });
+function saveFile(content: string | Blob, type: string, filename: string) {
+  const blob = content instanceof Blob ? content : new Blob([content], { type });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.setAttribute("href", url);
@@ -21,12 +23,70 @@ function saveFile(content: string, type: string, filename: string) {
 
 export default {
   setup() {
-    return { statsMode, cycleStatsMode };
+    return { statsMode, cycleStatsMode, results: useFinishedResults() };
   },
   data() {
-    return { resetDialog: false };
+    return {
+      resetDialog: false,
+      shareDialog: false,
+      shareBlob: null as Blob | null,
+      shareUrl: "",
+      shareError: "",
+      canShareFile: false,
+    };
+  },
+  computed: {
+    shareFilename(): string {
+      return `badminton_stats_${today()}.png`;
+    },
+  },
+  watch: {
+    shareDialog(open: boolean) {
+      if (!open) {
+        URL.revokeObjectURL(this.shareUrl);
+        this.shareUrl = "";
+        this.shareBlob = null;
+      }
+    },
   },
   methods: {
+    async openShare() {
+      this.shareDialog = true;
+      this.shareError = "";
+      try {
+        const card = buildStatsCard(statsByPlayer(this.results), new Date());
+        const blob = await renderStatsCardPng(card);
+        this.shareBlob = blob;
+        this.shareUrl = URL.createObjectURL(blob);
+        this.canShareFile =
+          typeof navigator.canShare === "function" &&
+          navigator.canShare({ files: [this.shareFile()] });
+      } catch (error) {
+        this.shareError = error instanceof Error ? error.message : String(error);
+      }
+    },
+    shareFile(): File {
+      return new File([this.shareBlob!], this.shareFilename, { type: "image/png" });
+    },
+    async share() {
+      try {
+        await navigator.share({
+          title: `Badminton stats ${dateFormat.format(new Date())}`,
+          files: [this.shareFile()],
+        });
+      } catch (error) {
+        // the user dismissing the share sheet is not a failure
+        if (error instanceof DOMException && error.name === "AbortError") {
+          return;
+        }
+        this.downloadCard();
+      }
+    },
+    downloadCard() {
+      if (this.shareBlob) {
+        saveFile(this.shareBlob, "image/png", this.shareFilename);
+      }
+    },
     async reset() {
       this.resetDialog = false;
       await db.transaction(
@@ -84,9 +144,10 @@ export default {
   <v-chip rounded="xl" label color="blue" @click="cycleStatsMode">
     {{ statsMode }}
   </v-chip>
+  <v-btn class="ml-auto mr-2" variant="elevated" @click="openShare">Share</v-btn>
   <v-menu location="bottom end">
     <template v-slot:activator="{ props }">
-      <v-btn v-bind="props" class="ml-auto mr-2" icon="mdi-dots-vertical" title="More"></v-btn>
+      <v-btn v-bind="props" class="mr-2" icon="mdi-dots-vertical" title="More"></v-btn>
     </template>
     <v-list density="compact">
       <v-list-item prepend-icon="mdi-download" title="Download stats as CSV" @click="downloadCsv"></v-list-item>
@@ -107,4 +168,42 @@ export default {
       </v-card-actions>
     </v-card>
   </v-dialog>
+  <v-dialog v-model="shareDialog" fullscreen transition="dialog-bottom-transition">
+    <v-card class="d-flex flex-column">
+      <v-toolbar>
+        <v-btn icon="mdi-close" title="Close" @click="shareDialog = false"></v-btn>
+        <v-toolbar-title>Share stats</v-toolbar-title>
+        <v-btn
+          v-if="canShareFile"
+          class="mr-2"
+          variant="elevated"
+          :disabled="!shareBlob"
+          @click="share"
+          >Share</v-btn
+        >
+        <v-btn v-else class="mr-2" variant="elevated" :disabled="!shareBlob" @click="downloadCard"
+          >Download</v-btn
+        >
+      </v-toolbar>
+      <div class="share-preview flex-grow-1 d-flex align-center justify-center pa-4">
+        <div v-if="shareError" class="text-error">{{ shareError }}</div>
+        <v-progress-circular v-else-if="!shareUrl" indeterminate></v-progress-circular>
+        <img v-else :src="shareUrl" alt="Stats card" />
+      </div>
+    </v-card>
+  </v-dialog>
 </template>
+
+<style scoped>
+.share-preview {
+  min-height: 0;
+  overflow: auto;
+}
+
+.share-preview img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.25);
+}
+</style>
