@@ -2,13 +2,33 @@
 import { db, playersContextId } from "@/shared/db";
 import { statsMode, cycleStatsMode } from "@/shared/statsMode";
 
+function today() {
+  return new Date().toJSON().split("T")[0];
+}
+
+function saveFile(content: string, type: string, filename: string) {
+  const blob = new Blob([content], { type });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.setAttribute("href", url);
+  link.setAttribute("download", filename);
+  link.style.visibility = "hidden";
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
 export default {
   setup() {
     return { statsMode, cycleStatsMode };
   },
+  data() {
+    return { resetDialog: false };
+  },
   methods: {
-    async reset(dialogIsActive: { value: boolean }) {
-      dialogIsActive.value = false;
+    async reset() {
+      this.resetDialog = false;
       await db.transaction(
         "rw",
         [db.results, db.playing, db.context],
@@ -41,15 +61,20 @@ export default {
       }
 
       const content = [headers.join(";"), ...rows].join("\n");
-      const blob = new Blob([content], { type: "text/csv;charset=utf-8;" });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.setAttribute("href", url);
-      link.setAttribute("download", `badminton_stats_${new Date().toJSON().split('T')[0]}.csv`);
-      link.style.visibility = "hidden";
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+      saveFile(content, "text/csv;charset=utf-8;", `badminton_stats_${today()}.csv`);
+    },
+    async downloadDatabase() {
+      const dump = await db.transaction("r", db.tables, async () => {
+        const entries = await Promise.all(
+          db.tables.map(async (table) => [table.name, await table.toArray()] as const)
+        );
+        return Object.fromEntries(entries);
+      });
+      saveFile(
+        JSON.stringify(dump, undefined, 2),
+        "application/json;charset=utf-8;",
+        `badminton_db_${today()}.json`
+      );
     },
   },
 };
@@ -59,24 +84,27 @@ export default {
   <v-chip rounded="xl" label color="blue" @click="cycleStatsMode">
     {{ statsMode }}
   </v-chip>
-  <v-btn class="ml-auto mr-2" variant="elevated" @click="downloadCsv">Download</v-btn>
-  <v-dialog width="500">
+  <v-menu location="bottom end">
     <template v-slot:activator="{ props }">
-      <v-btn v-bind="props" class="ml-auto mr-2" variant="elevated">Reset</v-btn>
+      <v-btn v-bind="props" class="ml-auto mr-2" icon="mdi-dots-vertical" title="More"></v-btn>
     </template>
+    <v-list density="compact">
+      <v-list-item prepend-icon="mdi-download" title="Download stats as CSV" @click="downloadCsv"></v-list-item>
+      <v-list-item prepend-icon="mdi-bug" title="Download database as JSON" @click="downloadDatabase"></v-list-item>
+      <v-list-item prepend-icon="mdi-delete" title="Reset" @click="resetDialog = true"></v-list-item>
+    </v-list>
+  </v-menu>
+  <v-dialog v-model="resetDialog" width="500">
+    <v-card title="Reset">
+      <v-card-text> This will reset all results, are you sure? </v-card-text>
 
-    <template v-slot:default="{ isActive }">
-      <v-card title="Reset">
-        <v-card-text> This will reset all results, are you sure? </v-card-text>
+      <v-card-actions>
+        <v-spacer></v-spacer>
 
-        <v-card-actions>
-          <v-spacer></v-spacer>
+        <v-btn text="Cancel" variant="plain" @click="resetDialog = false"></v-btn>
 
-          <v-btn text="Cancel" variant="plain" @click="isActive.value = false"></v-btn>
-
-          <v-btn color="primary" text="Reset" variant="tonal" @click="reset(isActive)"></v-btn>
-        </v-card-actions>
-      </v-card>
-    </template>
+        <v-btn color="primary" text="Reset" variant="tonal" @click="reset"></v-btn>
+      </v-card-actions>
+    </v-card>
   </v-dialog>
 </template>
